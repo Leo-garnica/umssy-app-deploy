@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AppLayout from "./layout";
 
+vi.mock("@/modules/auth/components/auth-guard", () => ({
+  AuthGuard: ({ children }: { children: ReactNode }) => children,
+}));
+
 vi.mock("@/shared/components/layout", () => ({
   AppShell: ({ children }: { children: ReactNode }) => (
     <div data-testid="app-shell">{children}</div>

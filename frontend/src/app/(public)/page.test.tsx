@@ -1,33 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { apiClient } from '@/shared/services/api-client'
-import Home from './page'
+import { describe, expect, it, vi } from "vitest";
+import { redirect } from "next/navigation";
+import HomePage from "./page";
 
-describe('Home Page', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
-  it('renderiza el título principal y muestra la respuesta GET del backend via Axios', async () => {
-    vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
-      data: 'Hello World!',
-    })
-
-    render(<Home />)
-    expect(screen.getByText('PWA Egresados UMSS')).toBeDefined()
-
-    await waitFor(() => {
-      expect(screen.getByText('Hello World!')).toBeDefined()
-    })
-  })
-
-  it('muestra mensaje de error si falla la petición con Axios', async () => {
-    vi.spyOn(apiClient, 'get').mockRejectedValueOnce(new Error('Network error'))
-
-    render(<Home />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Error connecting to backend')).toBeDefined()
-    })
-  })
-})
+describe("HomePage", () => {
+  it("opens the login when visiting the frontend root", () => {
+    HomePage();
+    expect(redirect).toHaveBeenCalledWith("/login");
+  });
+});

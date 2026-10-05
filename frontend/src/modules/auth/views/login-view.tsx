@@ -30,7 +30,7 @@ export function LoginView() {
     const result = await login({ email, password, roleTag });
     if (result) {
       sessionStorage.setItem("accessToken", result.accessToken);
-      router.push("/");
+      router.replace("/profile");
     }
   }
 

@@ -2,14 +2,12 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { getCorsOrigins } from './common/config/cors-origins.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
-  const corsOrigins = (process.env.CORS_ORIGIN ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
+  const corsOrigins = getCorsOrigins(process.env.CORS_ORIGIN);
 
   app.enableCors(corsOrigins.length > 0 ? { origin: corsOrigins } : {});
   app.setGlobalPrefix('api');

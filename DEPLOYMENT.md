@@ -75,6 +75,26 @@ El resultado esperado es CORS 204 con el origen del frontend, login 201 y perfil
 
 Si el backend no responde, abrir Vercel → proyecto backend → Logs y revisar la petición `/api/auth/login`. Comparar las variables de Production con los datos de Supabase y comprobar el Framework Preset y Root Directory. Un timeout por sí solo no identifica la causa del fallo.
 
-La validación local realizada conectó con Supabase y obtuvo CORS 204, login 201 y perfil 200. El backend publicado no respondió dentro de los tiempos de comprobación; falta verificar el despliegue de Vercel con sus logs y repetir estas comprobaciones después del redeploy.
+La validación local realizada conectó con Supabase y obtuvo CORS 204, login 201 y perfil 200.
+
+## Bloqueo de arranque en Vercel
+
+El build de producción proporcionado terminó correctamente, generó Prisma y comprobó las migraciones contra Supabase. Los errores de ejecución mostraron `INTERNAL_FUNCTION_INVOCATION_FAILED`.
+
+Se reprodujo un bloqueo al cargar `main.ts`: Vercel intercepta `http.Server.listen()` al importar la entrada y abre el servidor después de completar la importación. Un `await bootstrap()` al nivel superior espera a que `app.listen()` termine, por lo que impide que Vercel complete ese proceso. La entrada ahora invoca `void bootstrap().catch(...)`, siguiendo el patrón de arranque documentado para NestJS en Vercel.
+
+La comprobación siguiente reproduce esa intercepción sin acceder a la base y verifica que `/api` responda HTTP 200:
+
+```powershell
+pnpm build
+node scripts/check-vercel-startup.mjs
+```
+
+Referencias:
+
+- https://vercel.com/kb/guide/ship-a-nestjs-app-on-vercel
+- https://github.com/vercel/vercel/blob/main/packages/node/src/serverless-functions/serverless-handler.mts
+
+Publicar el cambio de `backend/src/main.ts` en Git y desplegar ese nuevo commit. Redeploy de un commit anterior mantiene el código que bloquea el arranque. Después del despliegue, repetir `check-api.mjs` contra la URL pública para confirmar login y perfil en producción.
 
 Las credenciales reales no se guardan en este repositorio. Cambiar la contraseña de la base y el secreto JWT compartidos en el chat, y actualizar sus valores en Vercel.

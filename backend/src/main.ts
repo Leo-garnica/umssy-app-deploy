@@ -32,9 +32,9 @@ async function bootstrap(): Promise<void> {
   );
 }
 
-try {
-  await bootstrap();
-} catch (error: unknown) {
+// Vercel captures server.listen() while importing this module and binds the
+// server afterwards. Awaiting bootstrap here prevents that import from ending.
+void bootstrap().catch((error: unknown) => {
   console.error('[bootstrap] FAILED', error);
   process.exit(1);
-}
+});

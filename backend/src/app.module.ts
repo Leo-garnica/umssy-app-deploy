@@ -8,8 +8,11 @@ import { AvailabilityModule } from './modules/availability/availability.module.j
 import { PrismaModule } from './common/prisma/prisma.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ProfileModule } from './modules/profile/profile.module.js';
+import { CertificationDocumentsModule } from './modules/certification-documents/certification-documents.module.js';
 import { CertificationsModule } from './modules/certifications/certifications.module.js';
+import { CvModule } from './modules/cv/cv.module.js';
 import { EducationsModule } from './modules/educations/educations.module.js';
+import { SkillsModule } from './modules/skills/skills.module.js';
 import { WorkExperienceModule } from './modules/work-experience/work-experience.module.js';
 
 @Module({
@@ -21,9 +24,12 @@ import { WorkExperienceModule } from './modules/work-experience/work-experience.
     AvailabilityModule,
     AuthModule,
     ProfileModule,
+    CvModule,
+    SkillsModule,
     EducationsModule,
     WorkExperienceModule,
     CertificationsModule,
+    CertificationDocumentsModule,
   ],
   controllers: [AppController],
   providers: [

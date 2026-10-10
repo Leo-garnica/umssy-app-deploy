@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard.js';
 import { JwtAuthModule } from '../guards/jwt-auth.module.js';
-import type { AuthenticatedRequest } from '../types/authenticated-request.type.js';
+import type { AuthenticatedRequest } from '../types/authenticated-request.types.js';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 
@@ -34,6 +34,6 @@ describe('JwtAuthModule', () => {
     } as unknown as ExecutionContext;
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request.user).toEqual({ userId, roleTag: 'titulado' });
+    expect(request.user).toEqual({ id: userId, email: '', roles: ['titulado'] });
   });
 });

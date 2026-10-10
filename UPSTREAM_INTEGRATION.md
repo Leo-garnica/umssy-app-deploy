@@ -70,3 +70,54 @@ git push origin main
 ```
 
 Si los dos proyectos Vercel siguen conectados a `main` de `Leo-garnica/umssy-app-deploy`, ese push iniciará ambos despliegues. Primero comprobar que el backend esté listo y luego revalidar login, perfil y certificaciones desde el frontend público. Las variables de Vercel siguen siendo las de `DEPLOYMENT.md`.
+
+---
+
+# Integración 2: Epic 2 hasta `b531fa35` (10 de octubre de 2026)
+
+Origen: `https://github.com/UMSSY/umssy-app.git`, rama `epic/grupo-2-perfiles-y-NLP`, tras fusionar `develop`. Base de esta integración: `9e93510` (la importación anterior). Rama local: `integrate/epic2-20261010`.
+
+Solo se importó lo que pertenece a la Epic 2. La rama de origen contiene además el trabajo de otras épicas (eventos, mentorías, solicitudes de acceso, reportes, chat), que **no** se copió.
+
+## Método
+
+Fusión de tres vías por archivo: base `9e93510`, versión actual de la Epic 2 y versión del deploy.
+
+- Si el deploy no había cambiado el archivo, se tomó la versión nueva.
+- Si el origen no cambió, se conservó el archivo del deploy.
+- Los archivos eliminados por la reorganización del origen se eliminaron.
+
+## Alcance importado
+
+- Backend: `profile`, `educations`, `work-experience`, `certifications` y los módulos nuevos `certification-documents`, `cv` y `skills` (el CV, las habilidades y los documentos de certificaciones salieron de `profile` y `certifications`).
+- Frontend: módulos `profile`, `certifications`, `documents`, `education`, `skills`, `work-experience` y las rutas `app/(app)/profile/**`.
+- Piezas compartidas que ese código necesita: validación de archivos (`common/services/file-validation.service.ts` y sus excepciones, tipos y constantes), guard JWT, decorador de usuario, filtro de excepciones, interceptor de respuesta, componentes `ui` (`dialog`, `label`, `alert-dialog`, `button`, `card-title`) y `shared/utils/download-file.ts`. Se agregaron los tests de esas piezas.
+- `backend/src/app.module.ts`: se registraron `CvModule`, `SkillsModule` y `CertificationDocumentsModule`. No se agregaron los proveedores globales del origen, porque los controladores de la Epic 2 aplican su propio `ResponseInterceptor`.
+
+## Adaptaciones del deploy conservadas
+
+- `backend/src/main.ts` (arranque sin top-level await para Vercel) y `common/config/cors-origins.ts`.
+- `frontend/src/shared/config/env.config.ts` y `frontend/src/shared/services/api-client.ts`: normalización de la URL de la API, timeout y tratamiento de 401. El origen agregó un interceptor del token y un error si falta la variable; no se importó porque los servicios de la Epic 2 envían el token con `getAuthHeaders()`.
+- Login, protección de rutas, layout `(app)`, página de inicio y componentes NLP de Home.
+- Campo "Oportunidades que me interesan" deshabilitado con aviso (`IS_INTERESTED_OPPORTUNITIES_ENABLED = false`).
+
+## Corrección de QA incluida
+
+- HU-01 (teléfono): el campo descarta los dígitos que pasan de 15 y muestra desde el inicio "De 7 a 15 dígitos".
+
+## No cambió
+
+- Dependencias y lockfile: el código importado no usa paquetes nuevos.
+- Esquema de Prisma y migraciones: los cambios del origen desde la base son de otras épicas (exportes, solicitudes de acceso, disponibilidad de mentorías) y ningún modelo de la Epic 2. No hace falta ejecutar SQL en Supabase por esta integración.
+- El cliente de Prisma generado (`backend/src/prisma`) no se tocó: Vercel lo regenera con `prisma generate`.
+
+## Pendiente (no resuelto por esta importación)
+
+- HU-02 (oportunidades): requiere la columna `users.interested_opportunities`, que no existe en la base.
+- Catálogo de habilidades: sigue siendo una operación de datos en Supabase; la copia de código no la hace.
+
+## Validación
+
+- Backend: build de producción correcto, 618 pruebas (73 archivos), lint y estándares sin errores, cobertura 86 %, arranque simulado de Vercel con `GET /api` en 200 y las 31 rutas de las 6 HU registradas.
+- Frontend: tipos y lint sin errores, 873 pruebas (102 archivos), cobertura 96 % y build de producción correcto con las 9 rutas de perfil.
+- Los errores de tipos que aparecen en archivos `*.spec.ts` al compilar con `tsconfig.json` también existen en el repositorio de origen y no afectan al build (`tsconfig.build.json`).

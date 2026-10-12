@@ -121,3 +121,36 @@ Fusión de tres vías por archivo: base `9e93510`, versión actual de la Epic 2 
 - Backend: build de producción correcto, 618 pruebas (73 archivos), lint y estándares sin errores, cobertura 86 %, arranque simulado de Vercel con `GET /api` en 200 y las 31 rutas de las 6 HU registradas.
 - Frontend: tipos y lint sin errores, 873 pruebas (102 archivos), cobertura 96 % y build de producción correcto con las 9 rutas de perfil.
 - Los errores de tipos que aparecen en archivos `*.spec.ts` al compilar con `tsconfig.json` también existen en el repositorio de origen y no afectan al build (`tsconfig.build.json`).
+
+---
+
+# Integración 3: Epic 2 hasta `3e8deda2` (12 de octubre de 2026)
+
+Origen: `https://github.com/UMSSY/umssy-app.git`, rama `epic/grupo-2-perfiles-y-NLP` (PR #1007, correcciones de la Epic 2). Base de esta integración: `b531fa35` (la importación anterior). Rama local: `integrate/epic2-20261012`.
+
+Mismo método y mismo alcance que la integración 2 (fusión de tres vías por archivo, solo archivos de la Epic 2). Ningún archivo compartido fuera de la Epic 2 cambió desde la base, y no hubo conflictos: 46 archivos copiados (8 nuevos) y 2 eliminados.
+
+## Cambios incorporados
+
+- Backend: la lógica de catálogos se separó en servicios propios (`CityCatalogService`, `EducationCatalogService`, `SkillCatalogService`) y `skill.service.ts` pasó a `user-skill.service.ts`. Los módulos `profile`, `educations` y `skills` se actualizaron en consecuencia. No cambian rutas ni contratos de la API (las 31 rutas de las 6 HU siguen registradas).
+- Certificaciones: "Organización emisora" admite hasta 150 caracteres (antes 100) en frontend y backend, y el documento de respaldo es obligatorio también al editar, salvo que la certificación ya tenga uno que no se esté quitando.
+- Habilidades: pantalla rediseñada (búsqueda en el catálogo, sugerencias, "Mis habilidades" y creación de habilidad propia) con los textos nuevos de `SKILLS_UI_TEXTS`.
+- `SectionCard` acepta `contentClassName`. Los demás cambios son limpieza de comentarios.
+
+## Se conserva igual que en la integración 2
+
+- Las adaptaciones del deploy (`main.ts`, CORS, `env.config.ts`, `api-client.ts`, login, layout, Home/NLP) y el campo "Oportunidades que me interesan" deshabilitado.
+
+## No cambió
+
+- Dependencias, lockfile, esquema de Prisma y migraciones. `issuing_organization` es `TEXT`, por lo que los 150 caracteres no requieren SQL. No hace falta ejecutar nada en Supabase.
+
+## Pendiente (sin cambios)
+
+- HU-02 (oportunidades): requiere la columna `users.interested_opportunities`.
+- Catálogo de habilidades: sigue siendo una operación de datos en Supabase.
+
+## Validación
+
+- Backend: build de producción correcto, 629 pruebas (76 archivos), lint sin errores, arranque simulado de Vercel con `GET /api` en 200 y las 31 rutas registradas.
+- Frontend: lint sin errores, 873 pruebas (102 archivos) y build de producción correcto (incluye comprobación de tipos) con las 9 rutas de perfil.

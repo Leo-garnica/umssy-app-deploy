@@ -162,7 +162,7 @@ describe("PresentationView", () => {
     expect(screen.getByText("Valeria Quispe")).toBeInTheDocument();
   });
 
-  it("saves only the stored fields and shows a confirmation", async () => {
+  it("saves the headline and about me and shows a confirmation", async () => {
     const user = userEvent.setup();
     vi.mocked(profileService.updatePresentation).mockResolvedValue({
       ...SAVED_PROFILE,
@@ -180,6 +180,7 @@ describe("PresentationView", () => {
       aboutMe: "Systems engineering graduate from UMSS.",
     });
     expect(await screen.findByText("Tu presentación se guardó correctamente.")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Oportunidades que me interesan/)).not.toBeInTheDocument();
   });
 
   it("shows the server field errors in Spanish next to each field", async () => {

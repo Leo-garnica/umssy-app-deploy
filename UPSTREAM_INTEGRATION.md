@@ -154,3 +154,23 @@ Mismo método y mismo alcance que la integración 2 (fusión de tres vías por a
 
 - Backend: build de producción correcto, 629 pruebas (76 archivos), lint sin errores, arranque simulado de Vercel con `GET /api` en 200 y las 31 rutas registradas.
 - Frontend: lint sin errores, 873 pruebas (102 archivos) y build de producción correcto (incluye comprobación de tipos) con las 9 rutas de perfil.
+
+---
+
+# Integración 4: presentación solo con "Acerca de" (14 de octubre de 2026)
+
+Origen: commits `922808a2` y `4b044585` de `feature/grupo-2-profile-personal-info` (PR en revisión hacia `epic/grupo-2-perfiles-y-NLP`). Rama local: `integrate/epic2-20261014`.
+
+## Cambio
+
+- Se elimina el campo "Oportunidades que me interesan" de la presentación profesional (HU-01): formulario, vista previa y resumen de "Mi perfil".
+- "Acerca de" es el único texto de presentación. Se guarda en `aboutMe`, igual que antes, y su texto de ayuda pide mencionar las oportunidades laborales que interesan.
+- Con esto deja de existir el bloqueo propio del deploy: se quita `IS_INTERESTED_OPPORTUNITIES_ENABLED` y el aviso "Pronto podrás guardar este dato". Los 18 archivos del módulo `profile` quedan iguales a los del origen.
+
+## No cambió
+
+- Backend, esquema de Prisma y migraciones. La columna `users.interested_opportunities` ya no es necesaria.
+
+## Validación
+
+- Frontend: 873 pruebas (102 archivos), lint sin errores y build de producción correcto.

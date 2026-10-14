@@ -8,7 +8,6 @@ import { PROFILE_FEEDBACK_MESSAGES } from "../constants/profile-feedback.constan
 import { useProfile } from "../hooks/use-profile";
 import { useProfilePhoto } from "../hooks/use-profile-photo";
 import { useSaveProfile } from "../hooks/use-save-profile";
-import type { PresentationValues } from "../types/presentation-values.types";
 import { getFullName } from "../utils/get-full-name";
 import { toPresentationValues } from "../utils/to-presentation-values";
 
@@ -16,10 +15,6 @@ export function PresentationView() {
   const { profile, isLoading, error: loadError, setProfile } = useProfile();
   const { savePresentation, isSaving, feedback, fieldErrors, clearFeedback } = useSaveProfile(setProfile);
   const { photoUrl, isLoading: isPhotoLoading, loadError: photoLoadError, reloadPhoto } = useProfilePhoto();
-
-  const handleSubmit = (values: PresentationValues) => {
-    void savePresentation({ headline: values.headline, aboutMe: values.aboutMe });
-  };
 
   return (
     <ProfilePageLayout
@@ -53,10 +48,8 @@ export function PresentationView() {
             photoUrl={photoUrl}
             isSaving={isSaving}
             serverErrors={fieldErrors}
-            onEdit={(field) =>
-              clearFeedback(field === "interestedOpportunities" ? undefined : field)
-            }
-            onSubmit={handleSubmit}
+            onEdit={clearFeedback}
+            onSubmit={(values) => void savePresentation(values)}
           />
         </>
       ) : null}

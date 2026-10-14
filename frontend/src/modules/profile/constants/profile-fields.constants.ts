@@ -9,6 +9,3 @@ export const PROFILE_FIELDS = [
   "headline",
   "aboutMe",
 ] as const satisfies readonly (keyof ProfileFieldErrors)[];
-
-// Turn on when the users.interested_opportunities column exists (issues #62 and #63).
-export const IS_INTERESTED_OPPORTUNITIES_ENABLED = false;

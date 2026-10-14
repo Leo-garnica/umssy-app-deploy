@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { IS_INTERESTED_OPPORTUNITIES_ENABLED } from "../constants/profile-fields.constants";
 import type { PresentationErrors } from "../types/presentation-errors.types";
 import type { PresentationFormProps } from "../types/presentation-form-props.types";
 import type { PresentationValues } from "../types/presentation-values.types";
@@ -81,7 +80,7 @@ export function PresentationForm({
               id="aboutMe"
               name="aboutMe"
               rows={6}
-              placeholder="Cuenta quién eres y en qué te especializas."
+              placeholder="Cuenta quién eres, en qué te especializas y qué oportunidades laborales te interesan."
               value={values.aboutMe}
               disabled={isSaving}
               onChange={handleChange}
@@ -89,30 +88,10 @@ export function PresentationForm({
               {...getFieldErrorProps("aboutMe", errors.aboutMe)}
             />
           </FormField>
-          <FormField id="interestedOpportunities" label="Oportunidades que me interesan">
-            <Textarea
-              id="interestedOpportunities"
-              name="interestedOpportunities"
-              rows={3}
-              placeholder="Ej. Prácticas o empleo en desarrollo frontend, trabajo remoto."
-              value={values.interestedOpportunities}
-              disabled={isSaving || !IS_INTERESTED_OPPORTUNITIES_ENABLED}
-              aria-describedby={
-                IS_INTERESTED_OPPORTUNITIES_ENABLED ? undefined : "interestedOpportunities-hint"
-              }
-              onChange={handleChange}
-              className="w-full rounded-lg border border-border bg-surface px-4 text-[15px] text-ink placeholder:text-text-secondary/70 focus:border-ink-soft focus:ring-2 focus:ring-ink/10 focus:outline-none disabled:opacity-60 aria-invalid:border-accent aria-invalid:focus:ring-accent/15 resize-y py-3 field-sizing-fixed min-h-0 md:text-[15px] focus-visible:border-ink-soft focus-visible:ring-2 focus-visible:ring-ink/10 aria-invalid:ring-0"
-            />
-            {IS_INTERESTED_OPPORTUNITIES_ENABLED ? null : (
-              <p id="interestedOpportunities-hint" className="text-[13px] text-text-secondary">
-                Pronto podrás guardar este dato en tu perfil. Por ahora no se registra.
-              </p>
-            )}
-          </FormField>
 
           <div className="flex items-center justify-between gap-6 pt-3">
             <p className="text-[13px] text-text-secondary">
-              Estos textos aparecerán en tu perfil público.
+              Los dos textos aparecerán en tu perfil público.
             </p>
             <div className="flex gap-3">
               <Button

@@ -174,3 +174,44 @@ Origen: commits `922808a2` y `4b044585` de `feature/grupo-2-profile-personal-inf
 ## Validación
 
 - Frontend: 873 pruebas (102 archivos), lint sin errores y build de producción correcto.
+
+---
+
+# Integración 5: Epic 2 hasta `63b93db8`, tabla `user_cv_file` y sidebar nuevo (15 de octubre de 2026)
+
+Origen: `https://github.com/UMSSY/umssy-app.git`, rama `epic/grupo-2-perfiles-y-NLP`. Base de esta integración: `3e8deda2` (la importación anterior de la Epic 2). Rama local: `integrate/epic2-cv-table-sidebar`.
+
+Mismo método que las integraciones anteriores: fusión de tres vías por archivo, solo archivos de la Epic 2 y lo compartido que esos archivos importan. 59 archivos copiados y 2 eliminados.
+
+## Epic 2 (backend y frontend)
+
+- CV (HU-06): el archivo se guarda en la tabla nueva `user_cv_file` (nombre, fecha de carga y contenido en base64) en lugar de `users.cv_pdf_url`.
+- Habilidades: `SkillsModule` incluye `SkillDictionaryService` (`modules/job-connect`, sin dependencias); es un proveedor nuevo que solo se importó porque el módulo lo declara.
+- Validaciones y constantes de educación, experiencia, certificaciones, perfil y habilidades reorganizadas, sin cambios de contrato en la API.
+- Guard JWT: la consulta de sesión se separó en `SessionService`/`SessionRepository` (`common/session`). Valida lo mismo contra `users` y `user_roles`, que ya existen en el deploy.
+- Frontend: diálogo de confirmación que no desborda con textos largos y vista de educación ajustada.
+
+## Base de datos
+
+- Esquema: se agregó el modelo `UserCvFile` y la relación `User.cvFile`, y se quitó `User.cvPdfUrl`. El cliente de Prisma generado se actualizó solo en lo de `UserCvFile`.
+- Migración nueva: `20261014020000_add_user_cv_file`. Crea la tabla, copia los CV existentes desde `users.cv_pdf_url` (bytes a base64, con nombre `CV.pdf`) y elimina esa columna.
+- `vercel-build` ejecuta `prisma migrate deploy` en producción, por lo que la migración se aplica sola al desplegar el backend. Si se prefiere aplicarla a mano en Supabase, hay que marcarla después con `prisma migrate resolve --applied 20261014020000_add_user_cv_file`.
+- No se copiaron las migraciones de otras épicas (chat, ofertas de empleo, claves de historiales y de eventos).
+
+## Sidebar nuevo
+
+- Logo de UMSSY (`public/icons/icon-192x192.png`) en el sidebar, el título y el ícono de la pestaña; textos, estilos de los ítems y tarjeta de usuario como en el equipo.
+- La tarjeta de usuario muestra el nombre real (consulta `GET /profile/me`) y el rol del token, con botón para cerrar sesión. Reemplaza al usuario de muestra "Alejandro Vargas".
+- Menú: solo "Mi perfil", porque el resto de las secciones del equipo (chat, talleres, vacantes, reclutadores, reportes, radar) no existen en este deploy.
+- Se eliminó la página `/sidebar-preview` y sus datos de muestra, que el equipo también quitó.
+- Se mantuvo el control de sesión del deploy (`AuthGuard`) y no se tomó el sistema de sesión por cookies, roles por ruta, React Query ni el service worker del equipo.
+
+## No cambió
+
+- Dependencias y lockfile. No se importó `recharts` ni el radar de afinidad (`/profile/radar` y `modules/radar-chart`), que no son de las 6 HU.
+- `main.ts`, CORS, `env.config.ts`, `api-client.ts`, login y la página de inicio.
+
+## Validación
+
+- Backend: build de producción correcto, 645 pruebas (79 archivos), lint sin errores y arranque simulado de Vercel con `GET /api` en 200 con las rutas de CV registradas.
+- Frontend: 892 pruebas (104 archivos), lint sin errores y build de producción correcto con las 9 rutas de perfil.

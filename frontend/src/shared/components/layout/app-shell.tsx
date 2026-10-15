@@ -1,6 +1,7 @@
 "use client";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SessionUserCard } from "@/modules/auth/components/session-user-card";
 import { SIDEBAR_STYLE } from "@/shared/constants/sidebar.constants";
 import type { AppShellProps } from "@/shared/types/app-shell-props.types";
 import { AppSidebar } from "./app-sidebar";
@@ -9,7 +10,7 @@ import { SidebarToggleButton } from "./sidebar-toggle-button";
 export function AppShell({ children, items, user }: AppShellProps) {
   return (
     <SidebarProvider style={SIDEBAR_STYLE}>
-      <AppSidebar items={items} user={user} />
+      <AppSidebar items={items} user={user} footer={user ? undefined : <SessionUserCard />} />
       <SidebarInset className="bg-surface-soft">
         <header className="flex items-center px-4 py-3">
           <SidebarToggleButton />

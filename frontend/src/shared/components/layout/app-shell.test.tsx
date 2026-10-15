@@ -5,6 +5,12 @@ import { AppShell } from "./app-shell";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/home",
+  useRouter: () => ({ replace: vi.fn() }),
+}));
+vi.mock("@/modules/profile/services/profile.service", () => ({
+  profileService: {
+    getProfile: vi.fn().mockResolvedValue({ firstName: "Valeria", lastName: "Quispe" }),
+  },
 }));
 
 describe("AppShell", () => {
@@ -14,7 +20,30 @@ describe("AppShell", () => {
 
   afterEach(() => {
     cleanup();
+    sessionStorage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it("shows the signed-in user in the sidebar footer", async () => {
+    sessionStorage.setItem("accessToken", `h.${btoa(JSON.stringify({ roleTag: "titulado" }))}.s`);
+    render(
+      <AppShell>
+        <p>Contenido de la página</p>
+      </AppShell>,
+    );
+
+    expect(await screen.findByText("Valeria Quispe")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeDefined();
+  });
+
+  it("does not show a user card without a session", () => {
+    render(
+      <AppShell>
+        <p>Contenido de la página</p>
+      </AppShell>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).toBeNull();
   });
 
   it("renders the sidebar next to the page content", () => {

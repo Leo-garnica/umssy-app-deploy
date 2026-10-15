@@ -29,13 +29,19 @@ describe("AppSidebar", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the brand and the temporary user by default", () => {
-    renderSidebar();
+  it("shows the brand with the logo and no user card by default", () => {
+    const { container } = renderSidebar();
 
     expect(screen.getByText("UMSSY")).toBeDefined();
     expect(screen.getByText("Universidad para el futuro")).toBeDefined();
-    expect(screen.getByText("Alejandro Vargas")).toBeDefined();
-    expect(screen.getByText("Administrador")).toBeDefined();
+    expect(container.querySelector('img[src*="icon-192x192"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
+  });
+
+  it("renders the footer received by props", () => {
+    renderSidebar({ footer: <p>Sesión activa</p> });
+
+    expect(screen.getByText("Sesión activa")).toBeDefined();
   });
 
   it("renders one item per entry of the default navigation", () => {

@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-27",
+  "scope": "UPSTREAM SHARED REPOSITORY ONLY; NOT DEPLOY CANDIDATE RESULTS",
+  "sourceCommit": "628a3cdc",
+  "mergedCommit": "144e9be9",
+  "backend": {
+    "passed": 2074,
+    "failed": 0,
+    "success": true
+  },
+  "frontend": {
+    "passed": 3133,
+    "failed": 0,
+    "success": true
+  },
+  "http": {
+    "passed": 16,
+    "results": [
+      {
+        "name": "legacy publication and document bytes remain intact without schema changes",
+        "milliseconds": 237,
+        "passed": true
+      },
+      {
+        "name": "personal information and presentation, including job interests, persist on reload",
+        "milliseconds": 126,
+        "passed": true
+      },
+      {
+        "name": "empty profile, zero CV count, authenticated six-axis radar",
+        "milliseconds": 58,
+        "passed": true
+      },
+      {
+        "name": "manual save triggers NLP and publishes without scoring pending skills",
+        "milliseconds": 121,
+        "passed": true
+      },
+      {
+        "name": "administrative approval is persisted, scored and idempotent",
+        "milliseconds": 142,
+        "passed": true
+      },
+      {
+        "name": "a pending CV does not remove an already approved manual contribution",
+        "milliseconds": 1583,
+        "passed": true
+      },
+      {
+        "name": "experience change updates approved relevance and leaves detections pending",
+        "milliseconds": 196,
+        "passed": true
+      },
+      {
+        "name": "editing and deleting sources removes stale approved contributions automatically",
+        "milliseconds": 246,
+        "passed": true
+      },
+      {
+        "name": "education and certification changes participate in the same pipeline",
+        "milliseconds": 555,
+        "passed": true
+      },
+      {
+        "name": "certification fields and attachment save atomically and metadata survives a new login",
+        "milliseconds": 328,
+        "passed": true
+      },
+      {
+        "name": "a late old analysis cannot overwrite the latest publication",
+        "milliseconds": 143,
+        "passed": true
+      },
+      {
+        "name": "publication failure preserves saved profile and last snapshot; retry recovers",
+        "milliseconds": 256,
+        "passed": true
+      },
+      {
+        "name": "textual CV extraction uses the owner and never approves detections automatically",
+        "milliseconds": 155,
+        "passed": true
+      },
+      {
+        "name": "unreadable current CV never falls back to an older textual CV",
+        "milliseconds": 318,
+        "passed": true
+      },
+      {
+        "name": "duplicate manual ids are rejected without changing the stored selection",
+        "milliseconds": 92,
+        "passed": true
+      },
+      {
+        "name": "a fresh login recovers the persisted profile, skills and radar",
+        "milliseconds": 83,
+        "passed": true
+      }
+    ]
+  },
+  "browser": {
+    "passed": 9,
+    "scenarios": [
+      "login real y habilidad manual guardada desde la UI",
+      "guardar experiencia actualiza habilidades detectadas sin recargar la página",
+      "aprobación real, radar publicado y detalle de evidencia del propietario",
+      "móvil sin desbordamiento horizontal y eliminación retira el aporte aprobado del radar",
+      "cerrar sesión y entrar con otro usuario no reutiliza el perfil anterior",
+      "alta de certificación con campos y PDF desde una sola operación de UI",
+      "archivo inválido conserva los campos y el respaldo guardados previamente",
+      "nuevo login recupera nombre, fecha y respaldo; editar campos conserva el archivo",
+      "radar a 320 px sin desbordamiento y menú móvil accesible"
+    ],
+    "errors": []
+  },
+  "deployCandidate": {
+    "validation": "pending; record the actual candidate results separately",
+    "productionChangesExecuted": false
+  }
+}

@@ -98,3 +98,25 @@ Referencias:
 Publicar el cambio de `backend/src/main.ts` en Git y desplegar ese nuevo commit. Redeploy de un commit anterior mantiene el código que bloquea el arranque. Después del despliegue, repetir `check-api.mjs` contra la URL pública para confirmar login y perfil en producción.
 
 Las credenciales reales no se guardan en este repositorio. Cambiar la contraseña de la base y el secreto JWT compartidos en el chat, y actualizar sus valores en Vercel.
+
+## Actualización de épicas 2 y 3: migraciones y catálogos
+
+La integración de la rama conjunta `feature/epic-2-y-epic-3` en el merge `144e9be9` incorpora tablas de vacantes y radar, consentimientos y soporte de varios CV. El esquema de los modelos importados conserva las definiciones del proyecto completo. El deploy mantiene sus migraciones históricas y añade un puente multi-CV que no vuelve a crear la tabla de estado NLP existente.
+
+También se añade `20261027110000_seed_epic2_epic3_catalogs`: inserta las seis áreas, las 81 habilidades oficiales con sus mapeos y once títulos de catálogos de vacantes. Preserva identificadores existentes, marcas personalizadas y áreas ya asignadas. No crea usuarios ni vacantes de prueba. Este dato es necesario: las habilidades sin área oficial no aportan puntos al radar aunque sean aprobadas.
+
+El `vercel-build` existente ejecuta `prisma generate`, aplica migraciones en **Production** y compila. Por tanto, un push a la rama de producción configurada puede iniciar tanto el despliegue como las migraciones y la carga de catálogos. Las migraciones se preparan y prueban localmente antes de ese push; no se ejecutan en Supabase durante la preparación del código.
+
+Antes de publicar:
+
+1. Confirmar en Vercel la rama de producción y los directorios raíz `frontend`/`backend`.
+2. Confirmar que el frontend apunta a la URL del backend propio y que las variables del backend corresponden a la base del deploy.
+3. Revisar las migraciones pendientes reales de esa base. La copia de trabajo tenía ocho directorios históricos, pero el último commit publicado puede contener solo los seis anteriores a NLP; las pruebas de actualización deben contemplar esa situación.
+4. Registrar build, pruebas y migraciones del candidato en `docs/qa/epic2-integracion.md`. Los resultados guardados como evidencia del repositorio conjunto no sustituyen estas pruebas.
+5. Publicar el commit revisado y comprobar primero el backend. Después repetir los recorridos de `docs/qa/epic2-recorridos.md` desde la URL pública y registrar el SHA publicado en la matriz.
+
+La política de Preview continúa omitiendo migraciones. Un preview necesita una base compatible preparada por separado; no debe asumir que comparte cambios de esquema con Production.
+
+No ejecutar `backend/test/qa/verify-epic2-radar.mjs` contra Supabase: crea fixtures e inyecta un fallo mediante un trigger temporal. Está protegido para bases descartables en localhost. Los tiempos de esa prueba local no certifican el arranque en frío en Vercel.
+
+Se conserva el login específico del deploy. Las cuentas de QA deben tener los roles correspondientes para revisar radares y probar el acceso de empresa. Los consentimientos controlan la exposición de radar, CV y contacto. La aceptación de criterios visuales antiguos, fórmula provisional y rendimiento queda registrada con QA/PO antes de declarar cerradas las HU.

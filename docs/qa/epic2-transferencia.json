@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-27",
+  "folder": "D:/UMSS/6to Semestre/IS/umssy-app-deploy",
+  "branch": "integrate/epic2-nlp-hu27",
+  "sourceCommit": "144e9be9",
+  "filesVerified": 571,
+  "dependencyInstallation": "Frozen lockfiles installed in actual destination; existing direct versions unchanged",
+  "builds": {
+    "backend": "passed in destination",
+    "frontend": "passed in destination"
+  },
+  "tests": {
+    "backendPassed": 1011,
+    "backendSkipped": 9,
+    "frontendFullSuitePassed": 1435,
+    "frontendFinalInitializationChecks": 7,
+    "httpScenarios": 25,
+    "browserScenarios": 14
+  },
+  "migrations": {
+    "total": 13,
+    "fresh": "passed",
+    "upgrade6To13": "passed",
+    "upgrade8To13": "passed",
+    "production": "not executed"
+  },
+  "committed": false,
+  "pushed": false
+}

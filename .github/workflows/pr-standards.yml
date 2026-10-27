@@ -19,7 +19,17 @@ jobs:
       - name: Validate branch name
         env:
           HEAD_REF: ${{ github.head_ref }}
-        run: bash scripts/check-branch-name.sh "$HEAD_REF"
+        run: |
+          if [[ "${GITHUB_REPOSITORY,,}" == "leo-garnica/umssy-app-deploy" ]]; then
+            PERSONAL_BRANCH='^(feature|fix|hotfix|refactor|docs|test|chore|ci|integrate|epic)/[a-z0-9]+(-[a-z0-9]+)*$'
+            if [[ "$HEAD_REF" == "develop" || "$HEAD_REF" == "main" || "$HEAD_REF" =~ $PERSONAL_BRANCH ]]; then
+              echo "Personal deployment branch name is valid."
+              exit 0
+            fi
+            echo "::error::Use <type>/<lowercase-description> for deployment branches."
+            exit 1
+          fi
+          bash scripts/check-branch-name.sh "$HEAD_REF"
 
       - name: Validate integration flow
         env:
@@ -27,6 +37,11 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           fail() { echo "::error::$1"; exit 1; }
+
+          if [[ "${GITHUB_REPOSITORY,,}" == "leo-garnica/umssy-app-deploy" && "$BASE_REF" == "main" ]]; then
+            echo "Personal deployment repository: PRs may integrate directly into main."
+            exit 0
+          fi
 
           DEVELOP_SOURCES='^(epic/|hotfix/|[a-z]+/devops-)'
           EPIC_SOURCE='^epic/'
@@ -65,6 +80,11 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [[ "${GITHUB_REPOSITORY,,}" == "leo-garnica/umssy-app-deploy" ]]; then
+            echo "Personal deployment repository: CI may be maintained in the same PR."
+            exit 0
+          fi
+
           DEVOPS_BRANCH='^[a-z]+/devops-'
           if [[ "$HEAD_REF" == "develop" || "$HEAD_REF" =~ $DEVOPS_BRANCH ]]; then
             echo "DevOps branch or sprint release: skipping this check."

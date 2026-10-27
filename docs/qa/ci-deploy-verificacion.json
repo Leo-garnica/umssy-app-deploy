@@ -1,0 +1,172 @@
+{
+  "date": "2026-10-27",
+  "branch": "fix/develop-ui-epic2-epic3",
+  "headBeforeFix": "b0035e56ad55e49a7b2c5a1f2263f8404c68c7f2",
+  "repository": "Leo-garnica/umssy-app-deploy",
+  "coverageBefore": {
+    "statements": {
+      "total": 4577,
+      "covered": 3902,
+      "skipped": 0,
+      "pct": 85.25
+    },
+    "branches": {
+      "total": 3581,
+      "covered": 2837,
+      "skipped": 0,
+      "pct": 79.22
+    },
+    "functions": {
+      "total": 1520,
+      "covered": 1221,
+      "skipped": 0,
+      "pct": 80.32
+    },
+    "lines": {
+      "total": 3973,
+      "covered": 3533,
+      "skipped": 0,
+      "pct": 88.92
+    }
+  },
+  "coverageAfter": {
+    "statements": {
+      "total": 4577,
+      "covered": 3930,
+      "skipped": 0,
+      "pct": 85.86
+    },
+    "branches": {
+      "total": 3581,
+      "covered": 2881,
+      "skipped": 0,
+      "pct": 80.45
+    },
+    "functions": {
+      "total": 1520,
+      "covered": 1234,
+      "skipped": 0,
+      "pct": 81.18
+    },
+    "lines": {
+      "total": 3973,
+      "covered": 3552,
+      "skipped": 0,
+      "pct": 89.4
+    }
+  },
+  "thresholdsUnchanged": {
+    "statements": 80,
+    "branches": 80,
+    "functions": 80,
+    "lines": 80
+  },
+  "frontendTests": {
+    "passed": 1645,
+    "failed": 0,
+    "newTests": 33
+  },
+  "policyChecks": {
+    "passed": 20,
+    "cases": [
+      {
+        "name": "personal: current branch name",
+        "passed": true
+      },
+      {
+        "name": "personal: standard group branch",
+        "passed": true
+      },
+      {
+        "name": "personal: develop name",
+        "passed": true
+      },
+      {
+        "name": "personal: uppercase names rejected",
+        "passed": true
+      },
+      {
+        "name": "personal: untyped branch rejected",
+        "passed": true
+      },
+      {
+        "name": "official: current personal name rejected",
+        "passed": true
+      },
+      {
+        "name": "official: group convention retained",
+        "passed": true
+      },
+      {
+        "name": "personal: direct PR to main",
+        "passed": true
+      },
+      {
+        "name": "official: direct group PR to main blocked",
+        "passed": true
+      },
+      {
+        "name": "official: sprint develop to main allowed",
+        "passed": true
+      },
+      {
+        "name": "official: epic to develop allowed",
+        "passed": true
+      },
+      {
+        "name": "official: group to develop blocked",
+        "passed": true
+      },
+      {
+        "name": "official: group to epic allowed",
+        "passed": true
+      },
+      {
+        "name": "official: merges between epics blocked",
+        "passed": true
+      },
+      {
+        "name": "other repositories do not inherit the personal exemption",
+        "passed": true
+      },
+      {
+        "name": "personal: approved CI edits allowed",
+        "passed": true
+      },
+      {
+        "name": "official: CI guard still blocks group changes",
+        "passed": true
+      },
+      {
+        "name": "official: unchanged CI passes",
+        "passed": true
+      },
+      {
+        "name": "official: develop may update CI",
+        "passed": true
+      },
+      {
+        "name": "official: DevOps branches may update CI",
+        "passed": true
+      }
+    ]
+  },
+  "validation": {
+    "coverageCommand": "pnpm test:coverage",
+    "coverageExitCode": 0,
+    "types": "tsc --noEmit: correcto",
+    "lint": "pnpm lint: correcto (1 advertencia preexistente en lint-staged.config.mjs)",
+    "build": "pnpm build: correcto",
+    "whitespace": "git diff --check: correcto"
+  },
+  "workflowChange": {
+    "file": ".github/workflows/pr-standards.yml",
+    "scope": "Excepción únicamente para leo-garnica/umssy-app-deploy; comparación sin distinción de mayúsculas",
+    "branchNames": "type/lowercase-description",
+    "integration": "PR directo hacia main",
+    "ciMaintenance": "Permitida en el mismo PR del repositorio personal",
+    "officialProjectPolicy": "Sin cambios; las reglas originales siguen aplicándose a UMSSY/umssy-app"
+  },
+  "committedByAssistant": false,
+  "pushedByAssistant": false
+}

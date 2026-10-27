@@ -20,7 +20,7 @@
     "frontend/package.json",
     "frontend/pnpm-lock.yaml",
     "frontend/next.config.ts",
-    ".github"
+    "frontend/vitest.config.mts"
   ],
   "parity": [
     {
@@ -86,7 +86,7 @@
   ],
   "validation": {
     "frontend": {
-      "passed": 1612,
+      "passed": 1645,
       "failed": 0
     },
     "backend": {
@@ -178,7 +178,33 @@
       "frontend": "next build: correcto, incluye TypeScript",
       "backend": "tsc -p tsconfig.build.json: correcto"
     },
-    "whitespace": "git diff --check: correcto"
+    "whitespace": "git diff --check: correcto",
+    "coverage": {
+      "statements": {
+        "total": 4577,
+        "covered": 3930,
+        "skipped": 0,
+        "pct": 85.86
+      },
+      "branches": {
+        "total": 3581,
+        "covered": 2881,
+        "skipped": 0,
+        "pct": 80.45
+      },
+      "functions": {
+        "total": 1520,
+        "covered": 1234,
+        "skipped": 0,
+        "pct": 81.18
+      },
+      "lines": {
+        "total": 3973,
+        "covered": 3552,
+        "skipped": 0,
+        "pct": 89.4
+      }
+    }
   },
   "environment": {
     "database": "PostgreSQL desechable en 127.0.0.1:55434 / umssy_epic2_qa_ui",
@@ -186,9 +212,23 @@
     "backend": "Nest local en 127.0.0.1:18082",
     "browserApi": "Interceptada y dirigida exclusivamente al backend local; hosts externos bloqueados",
     "productionDatabaseModified": false,
-    "commitCreated": false,
-    "pushed": false,
-    "deployed": false
+    "assistantActions": {
+      "commitCreated": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "userSubmittedUiCommits": [
+      "f3bc844",
+      "ebf3542",
+      "b0035e5"
+    ]
   },
-  "artifactsDirectory": "C:/Users/Leo/AppData/Local/Temp/umssy-ui-develop-20261027"
+  "artifactsDirectory": "C:/Users/Leo/AppData/Local/Temp/umssy-ui-develop-20261027",
+  "ciPolicyAdaptation": {
+    "approvedByUser": true,
+    "repository": "Leo-garnica/umssy-app-deploy",
+    "file": ".github/workflows/pr-standards.yml",
+    "policyChecks": 20,
+    "evidence": "ci-deploy-verificacion.json"
+  }
 }

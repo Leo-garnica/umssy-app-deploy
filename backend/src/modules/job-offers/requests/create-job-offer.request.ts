@@ -32,7 +32,7 @@ export const createJobOfferSchema = z
       .int(MESSAGES.POSITIONS_NOT_INTEGER)
       .min(1, MESSAGES.POSITIONS_TOO_FEW)
       .max(JOB_OFFER_MAX_POSITIONS, MESSAGES.POSITIONS_TOO_MANY),
-    salaryMin: salarySchema,
+    salaryMin: salarySchema.optional(),
     salaryMax: salarySchema.optional(),
     languages: z
       .string()
@@ -49,7 +49,10 @@ export const createJobOfferSchema = z
       .min(1, MESSAGES.SKILLS_REQUIRED)
       .max(JOB_OFFER_MAX_SKILLS, MESSAGES.SKILLS_TOO_MANY),
   })
-  .refine((data) => data.salaryMax === undefined || data.salaryMin <= data.salaryMax, {
+  .refine((data) => data.salaryMin !== undefined || (data.contractType === JobOfferContractType.INTERNSHIP && data.salaryMax === undefined), {
+    path: ['salaryMin'], message: MESSAGES.REQUIRED_FIELD,
+  })
+  .refine((data) => data.salaryMin === undefined || data.salaryMax === undefined || data.salaryMin <= data.salaryMax, {
     path: ['salaryMin'],
     message: MESSAGES.SALARY_RANGE_INVALID,
   });

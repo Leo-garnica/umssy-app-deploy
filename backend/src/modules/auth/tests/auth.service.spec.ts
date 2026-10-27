@@ -56,7 +56,7 @@ describe('AuthService', () => {
 
     const result = await service.login({ email: 'prueba@umss.edu.bo', password: 'Prueba123', roleTag: 'titulado' });
 
-    expect(result).toEqual({ accessToken: 'token-firmado', roleTag: 'titulado' });
-    expect(jwtService.sign).toHaveBeenCalledWith({ sub: 'user-1', roleTag: 'titulado' });
+    expect(result).toEqual({ accessToken: 'token-firmado', roleTag: 'titulado', roles: ['titulado'] });
+    expect(jwtService.sign).toHaveBeenCalledWith({ sub: 'user-1', roleTag: 'titulado', roles: ['titulado'] });
   });
 });

@@ -1,0 +1,68 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { getInitials } from "@/shared/utils/get-initials";
+import type { CandidateWithMatch } from "../types/matching-types";
+
+interface CandidateListItemProps {
+  candidate: CandidateWithMatch;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}
+
+export function CandidateListItem({ candidate, selected, onSelect }: CandidateListItemProps) {
+  const isDiscarded = candidate.status === "discarded";
+
+  return (
+    <Button variant="ghost"
+      type="button"
+      onClick={() => onSelect(candidate.id)}
+      aria-pressed={selected}
+      className={cn(
+        "h-auto w-full items-stretch rounded-lg border p-3 text-left whitespace-normal transition-colors",
+        selected ? "border-primary bg-muted" : "border-border bg-background hover:bg-muted/60",
+        isDiscarded && "opacity-60"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+          {getInitials(candidate.name)}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-medium text-foreground">{candidate.name}</p>
+            <span className="shrink-0 text-sm font-semibold text-foreground">
+              {candidate.matchPercent}%
+            </span>
+          </div>
+          <p className="truncate text-xs text-muted-foreground">{candidate.role}</p>
+
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full border border-notice-border bg-gold transition-[width] duration-300 ease-out"
+              style={{ width: `${candidate.matchPercent}%` }}
+            />
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {candidate.technologies.map((tech) => (
+              <span
+                key={tech}
+                className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
+                {tech}
+              </span>
+            ))}
+            {isDiscarded && (
+              <span className="px-2 py-0.5 text-[10px] font-medium text-ink-soft">
+                Descartado
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </Button>
+  );
+}

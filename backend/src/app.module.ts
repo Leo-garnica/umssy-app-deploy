@@ -14,6 +14,10 @@ import { CvModule } from './modules/cv/cv.module.js';
 import { EducationsModule } from './modules/educations/educations.module.js';
 import { SkillsModule } from './modules/skills/skills.module.js';
 import { WorkExperienceModule } from './modules/work-experience/work-experience.module.js';
+import { NlpModule } from './modules/nlp/nlp.module.js';
+import { RadarIntegrationModule } from './modules/radar-integration/radar-integration.module.js';
+import { JobOffersModule } from './modules/job-offers/job-offers.module.js';
+import { MatchingModule } from './modules/matching/matching.module.js';
 
 @Module({
   imports: [
@@ -30,6 +34,10 @@ import { WorkExperienceModule } from './modules/work-experience/work-experience.
     WorkExperienceModule,
     CertificationsModule,
     CertificationDocumentsModule,
+    NlpModule,
+    RadarIntegrationModule,
+    JobOffersModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [

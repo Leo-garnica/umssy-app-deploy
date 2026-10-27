@@ -13,7 +13,7 @@ afterEach(() => {
   replace.mockClear();
 });
 
-function submitLogin() {
+function submitLogin(role = "titulado") {
   render(<LoginView />);
   fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), {
     target: { value: "prueba@umss.edu.bo" },
@@ -21,6 +21,7 @@ function submitLogin() {
   fireEvent.change(screen.getByPlaceholderText("********"), {
     target: { value: "Prueba123" },
   });
+  fireEvent.change(screen.getByLabelText("Rol", { exact: true }), { target: { value: role } });
   fireEvent.click(screen.getByRole("button", { name: "Iniciar sesión" }));
 }
 
@@ -35,6 +36,16 @@ describe("LoginView", () => {
     expect(post).toHaveBeenCalledWith("/auth/login", {
       email: "prueba@umss.edu.bo", password: "Prueba123", roleTag: "titulado",
     });
+  });
+
+  it.each([
+    ["administrativo", "/affinity-radar/review-queue"],
+    ["empresa", "/recruiters"],
+  ])("opens the available workspace after login as %s", async (roleTag, destination) => {
+    vi.spyOn(apiClient, "post").mockResolvedValueOnce({ data: { accessToken: "test-token", roleTag } });
+    submitLogin(roleTag);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+    expect(sessionStorage.getItem("accessToken")).toBe("test-token");
   });
 
   it.each([

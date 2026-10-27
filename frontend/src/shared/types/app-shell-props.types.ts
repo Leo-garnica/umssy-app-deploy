@@ -6,4 +6,12 @@ export interface AppShellProps {
   children: ReactNode;
   items?: NavigationItem[];
   user?: SidebarUser;
+  fullBleed?: boolean;
+  brand?: ReactNode;
+  sidebarFooter?: ReactNode;
+  sidebarItemClassName?: string;
+  sidebarItemBadges?: Record<string, ReactNode>;
+  sidebarWidth?: string;
+  header?: ReactNode;
+  contentClassName?: string;
 }

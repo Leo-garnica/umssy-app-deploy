@@ -1,0 +1,247 @@
+{
+  "date": "2026-10-27",
+  "source": "144e9be9",
+  "scope": "Personal deploy integration; all database tests used disposable localhost PostgreSQL, no production changes",
+  "backend": {
+    "passed": 1011,
+    "skipped": 9,
+    "failed": 0,
+    "success": true,
+    "coverage": {
+      "statements": 80.11,
+      "branches": 80.16,
+      "functions": 82.42,
+      "lines": 81.13
+    }
+  },
+  "frontend": {
+    "passed": 1435,
+    "failed": 0,
+    "success": true,
+    "coverage": {
+      "statements": 87.13,
+      "branches": 81.16,
+      "functions": 83.23,
+      "lines": 91.1
+    },
+    "finalInitializationChecks": {
+      "passed": 7,
+      "failed": 0,
+      "success": true
+    }
+  },
+  "migrations": {
+    "passed": 3,
+    "results": [
+      {
+        "label": "fresh",
+        "oldMigrations": 0,
+        "finalMigrations": 13,
+        "passed": true,
+        "legacyDataPreserved": false
+      },
+      {
+        "label": "upgrade6",
+        "oldMigrations": 6,
+        "finalMigrations": 13,
+        "passed": true,
+        "legacyDataPreserved": true
+      },
+      {
+        "label": "upgrade8",
+        "oldMigrations": 8,
+        "finalMigrations": 13,
+        "passed": true,
+        "legacyDataPreserved": true
+      }
+    ]
+  },
+  "catalogReexecution": {
+    "passed": 3,
+    "results": [
+      {
+        "database": "umssy_epic2_qa_deploy",
+        "passed": true
+      },
+      {
+        "database": "umssy_epic2_qa_deploy_upgrade6",
+        "passed": true
+      },
+      {
+        "database": "umssy_epic2_qa_deploy_upgrade8",
+        "passed": true
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "project": "backend",
+      "directDependenciesBefore": 38,
+      "newDependencies": [
+        "nestjs-zod",
+        "pdfjs-dist"
+      ],
+      "existingVersionChanges": []
+    },
+    {
+      "project": "frontend",
+      "directDependenciesBefore": 33,
+      "newDependencies": [
+        "recharts"
+      ],
+      "existingVersionChanges": []
+    }
+  ],
+  "http": {
+    "passed": 25,
+    "results": [
+      {
+        "name": "legacy publication and document bytes remain intact without schema changes",
+        "milliseconds": 301,
+        "passed": true
+      },
+      {
+        "name": "personal information and presentation, including job interests, persist on reload",
+        "milliseconds": 121,
+        "passed": true
+      },
+      {
+        "name": "empty profile, zero CV count, authenticated six-axis radar",
+        "milliseconds": 68,
+        "passed": true
+      },
+      {
+        "name": "manual save triggers NLP and publishes without scoring pending skills",
+        "milliseconds": 181,
+        "passed": true
+      },
+      {
+        "name": "administrative approval is persisted, scored and idempotent",
+        "milliseconds": 247,
+        "passed": true
+      },
+      {
+        "name": "a pending CV does not remove an already approved manual contribution",
+        "milliseconds": 2585,
+        "passed": true
+      },
+      {
+        "name": "experience change updates approved relevance and leaves detections pending",
+        "milliseconds": 233,
+        "passed": true
+      },
+      {
+        "name": "editing and deleting sources removes stale approved contributions automatically",
+        "milliseconds": 353,
+        "passed": true
+      },
+      {
+        "name": "education and certification changes participate in the same pipeline",
+        "milliseconds": 784,
+        "passed": true
+      },
+      {
+        "name": "certification fields and attachment save atomically and metadata survives a new login",
+        "milliseconds": 401,
+        "passed": true
+      },
+      {
+        "name": "a late old analysis cannot overwrite the latest publication",
+        "milliseconds": 184,
+        "passed": true
+      },
+      {
+        "name": "publication failure preserves saved profile and last snapshot; retry recovers",
+        "milliseconds": 311,
+        "passed": true
+      },
+      {
+        "name": "textual CV extraction uses the owner and never approves detections automatically",
+        "milliseconds": 214,
+        "passed": true
+      },
+      {
+        "name": "unreadable current CV never falls back to an older textual CV",
+        "milliseconds": 325,
+        "passed": true
+      },
+      {
+        "name": "duplicate manual ids are rejected without changing the stored selection",
+        "milliseconds": 135,
+        "passed": true
+      },
+      {
+        "name": "a fresh login recovers the persisted profile, skills and radar",
+        "milliseconds": 71,
+        "passed": true
+      },
+      {
+        "name": "matching route validates input and wraps results without global pipes or interceptors",
+        "milliseconds": 66,
+        "passed": true
+      },
+      {
+        "name": "recruiter companies come from authenticated bindings and exclude foreign companies",
+        "milliseconds": 224,
+        "passed": true
+      },
+      {
+        "name": "company vacancy creation and private listings require the actual owner binding",
+        "milliseconds": 273,
+        "passed": true
+      },
+      {
+        "name": "recruitment uses the current approved radar and an approved owner CV",
+        "milliseconds": 516,
+        "passed": true
+      },
+      {
+        "name": "applications require explicit radar consent and remain owned and idempotent",
+        "milliseconds": 152,
+        "passed": true
+      },
+      {
+        "name": "recruiter radar and area evidence use real applications and reject foreign company access",
+        "milliseconds": 314,
+        "passed": true
+      },
+      {
+        "name": "contact and CV permissions are independent and revocation takes effect immediately",
+        "milliseconds": 278,
+        "passed": true
+      },
+      {
+        "name": "revoking radar visibility also removes evidence and CV access until restored",
+        "milliseconds": 139,
+        "passed": true
+      },
+      {
+        "name": "hiring rejection and withdrawal persist and cannot be overwritten or reactivated",
+        "milliseconds": 500,
+        "passed": true
+      }
+    ]
+  },
+  "browser": {
+    "passed": 14,
+    "scenarios": [
+      "login real y habilidad manual guardada desde la UI",
+      "guardar experiencia actualiza habilidades detectadas sin recargar la página",
+      "aprobación real, radar publicado y detalle de evidencia del propietario",
+      "móvil sin desbordamiento horizontal y eliminación retira el aporte aprobado del radar",
+      "cerrar sesión y entrar con otro usuario no reutiliza el perfil anterior",
+      "alta de certificación con campos y PDF desde una sola operación de UI",
+      "archivo inválido conserva los campos y el respaldo guardados previamente",
+      "nuevo login recupera nombre, fecha y respaldo; editar campos conserva el archivo",
+      "radar a 320 px sin desbordamiento y menú móvil accesible",
+      "empresa autenticada publica desde los tres pasos con su vínculo real y persiste la vacante",
+      "titulado ve la vacante real y postula desde UI con consentimientos independientes",
+      "la empresa ve al postulante y su radar publicado en matching",
+      "una cuenta sin empresa muestra el estado correcto y no hereda la empresa de otra sesión",
+      "login administrativo llega a revisión y los permisos de empresa se aplican en la UI"
+    ],
+    "pageErrors": []
+  },
+  "vercelStartupSimulation": "Passed; HTTP GET /api 200",
+  "production": "Not published or connected; no backend .env present in local deploy repo; Vercel environment variables not inspected"
+}

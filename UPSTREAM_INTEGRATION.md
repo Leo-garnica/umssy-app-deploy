@@ -215,3 +215,93 @@ Mismo método que las integraciones anteriores: fusión de tres vías por archiv
 
 - Backend: build de producción correcto, 645 pruebas (79 archivos), lint sin errores y arranque simulado de Vercel con `GET /api` en 200 con las rutas de CV registradas.
 - Frontend: 892 pruebas (104 archivos), lint sin errores y build de producción correcto con las 9 rutas de perfil.
+
+---
+
+# Integración 6: UI nueva de la Epic 2 y NLP de la HU-2.7 (23 de octubre de 2026)
+
+Origen de la UI: `https://github.com/UMSSY/umssy-app.git`, rama `epic/grupo-2-perfiles-y-NLP` en `2f71f0a4` (incluye el PR #1354 con el esqueleto del NLP, #1189). Base: `63b93db8` (la importación anterior). Rama local: `integrate/epic2-nlp-hu27`.
+
+El NLP de la HU-2.7 (#1190–#1195) se implementó directamente en este deploy, sobre el esqueleto del #1189.
+
+## UI nueva
+
+- Mismo método de fusión de tres vías: 240 archivos copiados y 12 eliminados de la Epic 2, más las piezas compartidas que usan.
+- "Mi perfil" (`/profile`) reúne experiencia, educación, certificaciones y habilidades, con edición en diálogos; `/profile/settings` junta datos personales y presentación. Las rutas anteriores redirigen a esas secciones.
+- Sistema de diseño del equipo (`app/globals.css`), componentes `ui` actualizados (`calendar` y `dropdown-menu` nuevos) y bloques de layout (`workspace-page`, `page-heading`, `form-section`, `form-fieldset`, `record-editor-dialog`, `danger-zone`, `date-field`).
+- Armazón nuevo: encabezado azul con logo, buscador de secciones (`Ctrl K`) y menú "Mi cuenta"; sidebar con el sello y el logo de la UMSS.
+- Adaptado a este deploy:
+  - `shared/contexts/auth-context.tsx` lee los roles del token del login, porque no hay `/auth/session`;
+  - `app-shell.tsx` y `app-header.tsx` no incluyen el chat;
+  - la navegación y el buscador solo listan las páginas de perfil que existen aquí;
+  - `/dashboard` redirige a `/profile`, porque el logo del equipo enlaza ahí;
+  - `app/providers.tsx` solo tiene React Query y la sesión, sin el service worker.
+- `api-client.ts` del deploy conserva su URL, su timeout y su manejo de 401; solo se le agregó `isApiError`, que usa la UI nueva.
+- No se tomaron el chat, el radar (`/profile/radar`, `modules/radar-chart`), el login ni la sesión por cookies del equipo, ni las carpetas `seeds/`.
+
+## Dependencias nuevas (frontend)
+
+`@tanstack/react-query` 5.104.1, `react-day-picker` 10.0.2 y `date-fns` 4.4.0, las mismas versiones que el lockfile del equipo. La UI nueva las necesita. `pnpm install --frozen-lockfile` pasa con el lockfile actualizado.
+
+## NLP de la HU-2.7
+
+- Módulo `backend/src/modules/nlp`: normalización, diccionario versionado (`1.0.0`), detector con reglas de contexto, validación contra el catálogo, consolidación con las habilidades manuales y estado por usuario. Detalle y trazabilidad en `backend/src/modules/nlp/README.md`.
+- Se ejecuta solo después de guardar, editar o borrar habilidades, experiencia laboral o educación; si falla, el guardado no falla.
+- Rutas nuevas: `GET /api/profile/skills-for-radar` (resultado guardado para el radar) y `POST /api/profile/me/skills/analysis` (reintento).
+- Guardar habilidades ya no borra todas las filas del usuario: reconcilia solo las manuales y conserva las detectadas, su evidencia y su verificación. `GET /api/profile/me/skills` devuelve solo las manuales.
+- Frontend: en "Mi perfil" → "Habilidades", el bloque "Detectadas en tu experiencia" muestra lo que encontró el análisis, con su estado y un botón "Volver a analizar". Es un agregado de este deploy para poder probar la HU; no está en la UI del equipo.
+
+## Base de datos
+
+- `20261023003219_add_radar_areas_and_user_skill_fields`: la migración del PR #1334, copiada tal cual (`radar_areas`, `skills.area_id`, `source`, `verification_status`, `is_high_relevance` y `evidence_refs` en `user_skills`).
+- `20261023170000_add_profile_skill_processing_states`: la tabla nueva según la especificación entregada (PK y FK a `users` con `ON DELETE CASCADE`, `CHECK` de `status`).
+- Ambas se aplican solas con `prisma migrate deploy` al desplegar el backend en producción. Se probaron sobre una base vacía y el esquema resultante coincide con `schema.prisma`.
+- Datos: `docs/supabase-nlp-data.sql` carga las 6 áreas del radar y las 28 habilidades del catálogo oficial. Solo inserta lo que falta. Sin catálogo, el NLP descarta todo lo que detecta.
+
+## Validación
+
+- Backend: build de producción correcto, 771 pruebas (91 archivos), `lint` y `lint:standards` sin errores, cobertura global de 92,7 % sentencias y 91,9 % ramas, y arranque simulado de Vercel con las rutas del NLP registradas.
+- NLP: 117 pruebas propias, cobertura del módulo de 100 % sentencias y 97,3 % ramas, y precisión de 100 % con recall de 98,3 % en el conjunto reservado (`docs/evaluation-report.md`). La prueba contra Postgres real (9 casos) pasó.
+- Frontend: 969 pruebas (121 archivos), cobertura de 95,3 % sentencias, lint sin errores y build de producción correcto.
+
+---
+
+# Integración 7: épicas 2 y 3 desde la rama conjunta (27 de octubre de 2026)
+
+Origen: `https://github.com/UMSSY/umssy-app.git`, rama `feature/epic-2-y-epic-3`, merge `144e9be9` del PR #1715. La preparación parte del estado completo de este deploy, incluidas la UI nueva y las modificaciones locales de la integración 6. Los repositorios mantienen historiales independientes; la importación se hace por contenido y dependencias.
+
+## Alcance funcional
+
+- Perfil y NLP de épica 2: fuentes vigentes, consolidación, referencias, control de revisiones y aviso posterior al commit.
+- Radar de épica 3: publicación coherente, detalle de evidencias, cola administrativa, aprobaciones/revocaciones y reintento tras fallo.
+- Consulta de vacantes, postulaciones y comparación de candidatos que usa la integración disponible, con sus catálogos y modelos necesarios.
+- Certificaciones con guardado conjunto de campos y respaldo en una transacción; metadatos recuperables entre sesiones mediante la auditoría existente.
+- Panel de habilidades detectadas en la UI actual, limpieza de caché al cambiar de usuario y tamaños móviles del radar.
+
+Se conservan el arranque propio de Vercel, CORS, conexión de base de datos, normalización de URLs, login y sesión por token. Los cambios locales anteriores se preservan como base de esta integración. No se incorpora el resto de módulos del proyecto completo para exponer funciones ajenas a estas épicas.
+
+## Historial y compatibilidad de base de datos
+
+Se conservan los ocho directorios de migración que estaban en la carpeta de trabajo del deploy, incluidos los dos de NLP de la integración 6. Se añaden cinco:
+
+- `20261012020907_add_job_offers`.
+- `20261025210000_epic3_integration`.
+- `20261026090000_epic3_application_contact_consent`.
+- `20261027100000_align_epic2_multi_cv`.
+- `20261027110000_seed_epic2_epic3_catalogs`.
+
+Las tres primeras proceden del proyecto completo. El puente multi-CV aplica el índice del origen sin volver a crear `profile_skill_processing_states`, porque el deploy ya tiene su propia migración histórica para esa tabla. No se reemplazan ni reescriben las migraciones antiguas. Los modelos y campos importados conservan los tipos, nombres y relaciones del proyecto completo.
+
+Los catálogos se incluyen en una migración de datos para evitar que una base con tablas nuevas pero sin áreas asignadas produzca un radar vacío: seis áreas, 81 habilidades oficiales con mapeos y once valores de estado/modalidad/contrato de vacantes. El SQL conserva IDs, mapeos existentes y marcas personalizadas; solo inserta faltantes y completa áreas nulas de los nombres oficiales. No crea cuentas ni vacantes de ejemplo.
+
+El archivo `docs/supabase-nlp-data.sql` queda como referencia histórica de la integración 6. Su lista de 28 habilidades y sus áreas sin mapear no sustituyen la nueva migración.
+
+## Evidencia y publicación
+
+Los resultados del repositorio conjunto se guardan por separado en `docs/qa/epic2-evidencia-upstream.json`: 2.074 pruebas de backend, 3.133 de frontend, 16 escenarios de API y nueve recorridos de navegador aprobados. No se atribuyen automáticamente al deploy.
+
+Validación específica del deploy: 1011 pruebas de backend aprobadas (9 optativas omitidas), 1435 de frontend, 25 escenarios de API y 14 recorridos de navegador. Coberturas superiores al 80%, builds/lint y simulación de Vercel aprobados. Las 13 migraciones pasaron desde cero y desde historiales de seis y ocho migraciones con datos sintéticos conservados. Detalles en docs/qa/epic2-integracion.md y epic2-evidencia-deploy.json.
+
+La política existente de `vercel-build` aplica `prisma migrate deploy` en Production; publicar estas migraciones ejecutará cambios de tablas y datos en la base configurada. Preparar esta integración no ejecuta SQL sobre Supabase. El push y la comprobación de la versión pública son pasos posteriores a la validación local del candidato.
+
+La fórmula del radar continúa provisional y los criterios visuales antiguos, el historial multi-CV y los tiempos en Vercel necesitan aceptación de QA/PO. No se declara terminada toda la épica 3 únicamente por importar esta integración.

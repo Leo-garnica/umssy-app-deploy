@@ -5,12 +5,6 @@ import { AppShell } from "./app-shell";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/home",
-  useRouter: () => ({ replace: vi.fn() }),
-}));
-vi.mock("@/modules/profile/services/profile.service", () => ({
-  profileService: {
-    getProfile: vi.fn().mockResolvedValue({ firstName: "Valeria", lastName: "Quispe" }),
-  },
 }));
 
 describe("AppShell", () => {
@@ -20,30 +14,13 @@ describe("AppShell", () => {
 
   afterEach(() => {
     cleanup();
-    sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
-  it("shows the signed-in user in the sidebar footer", async () => {
-    sessionStorage.setItem("accessToken", `h.${btoa(JSON.stringify({ roleTag: "titulado" }))}.s`);
-    render(
-      <AppShell>
-        <p>Contenido de la página</p>
-      </AppShell>,
-    );
-
-    expect(await screen.findByText("Valeria Quispe")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeDefined();
-  });
-
-  it("does not show a user card without a session", () => {
-    render(
-      <AppShell>
-        <p>Contenido de la página</p>
-      </AppShell>,
-    );
-
-    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).toBeNull();
+  it("keeps one main landmark when the view declares its content", () => {
+    render(<AppShell><main>Contenido principal</main></AppShell>);
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getByRole("main")).toHaveTextContent("Contenido principal");
   });
 
   it("renders the sidebar next to the page content", () => {
@@ -53,8 +30,20 @@ describe("AppShell", () => {
       </AppShell>,
     );
 
-    expect(screen.getByText("UMSSY")).toBeDefined();
+    expect(screen.getByRole("img", { name: "UMSSY, Acreditación y comunidad" })).toBeDefined();
     expect(screen.getByText("Contenido de la página")).toBeDefined();
+    expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
+    expect(screen.queryByText("Alejandro Vargas")).toBeNull();
+  });
+
+  it("passes a provided user to the sidebar", () => {
+    render(
+      <AppShell user={{ fullName: "María Pérez", role: "Egresada" }}>
+        Contenido
+      </AppShell>,
+    );
+    expect(screen.getByText("María Pérez")).toBeInTheDocument();
+    expect(screen.getByText("Egresada")).toBeInTheDocument();
   });
 
   it("closes and opens the sidebar with the menu button", () => {
@@ -65,17 +54,18 @@ describe("AppShell", () => {
     );
 
     const sidebar = document.querySelector('[data-slot="sidebar"]');
-    const closeButton = screen.getByRole("button", { name: "Cerrar menú" });
-    expect(closeButton.getAttribute("aria-expanded")).toBe("true");
+    const closeButton = screen.getByRole("button", { name: "Cerrar barra lateral" });
+    expect(screen.queryByRole("button", { name: "Abrir menú" })).not.toBeInTheDocument();
     expect(sidebar?.getAttribute("data-state")).toBe("expanded");
 
     fireEvent.click(closeButton);
     const openButton = screen.getByRole("button", { name: "Abrir menú" });
     expect(openButton.getAttribute("aria-expanded")).toBe("false");
+    expect(openButton).toHaveFocus();
     expect(sidebar?.getAttribute("data-state")).toBe("collapsed");
 
     fireEvent.click(openButton);
-    expect(screen.getByRole("button", { name: "Cerrar menú" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Cerrar barra lateral" })).toHaveFocus();
     expect(sidebar?.getAttribute("data-state")).toBe("expanded");
   });
 });

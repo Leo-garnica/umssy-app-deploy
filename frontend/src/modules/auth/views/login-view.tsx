@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLogin } from "../hooks/use-login";
 import type { RoleTag } from "../types/auth-types";
+import { saveAccessToken } from "@/shared/services/storage/access-token-storage";
+import { getHomePath } from "../utils/get-home-path";
 
 const ROLE_OPTIONS: { value: RoleTag; label: string }[] = [
   { value: "titulado", label: "Titulado" },
@@ -29,8 +31,8 @@ export function LoginView() {
     event.preventDefault();
     const result = await login({ email, password, roleTag });
     if (result) {
-      sessionStorage.setItem("accessToken", result.accessToken);
-      router.replace("/profile");
+      saveAccessToken(result.accessToken);
+      router.replace(getHomePath([result.roleTag]));
     }
   }
 
@@ -45,8 +47,9 @@ export function LoginView() {
           Comunidad verificada de la UMSS
         </p>
 
-        <label className="mb-1 block text-sm font-medium text-foreground">Rol</label>
+        <label htmlFor="login-role" className="mb-1 block text-sm font-medium text-foreground">Rol</label>
         <select
+          id="login-role"
           value={roleTag}
           onChange={(event) => setRoleTag(event.target.value as RoleTag)}
           className={`mb-4 ${selectClassName}`}
@@ -58,10 +61,11 @@ export function LoginView() {
           ))}
         </select>
 
-        <label className="mb-1 block text-sm font-medium text-foreground">
+        <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-foreground">
           Correo electrónico
         </label>
         <Input
+          id="login-email"
           type="email"
           required
           value={email}
@@ -70,8 +74,9 @@ export function LoginView() {
           placeholder="nombre@ejemplo.com"
         />
 
-        <label className="mb-1 block text-sm font-medium text-foreground">Contraseña</label>
+        <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-foreground">Contraseña</label>
         <Input
+          id="login-password"
           type="password"
           required
           value={password}

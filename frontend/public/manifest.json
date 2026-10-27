@@ -1,0 +1,21 @@
+{
+  "name": "UMSSY",
+  "short_name": "UMSSY",
+  "description": "Comunidad verificada de titulados de Ingeniería en Sistemas e Informática de la UMSS",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0B1F2E",
+  "lang": "es",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon-umssy.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -34,7 +34,7 @@ export function CandidateListItem({ candidate, selected, onSelect }: CandidateLi
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-medium text-foreground">{candidate.name}</p>
             <span className="shrink-0 text-sm font-semibold text-foreground">
-              {candidate.matchPercent}%
+              {candidate.hasRadar === false ? "Sin radar" : `${candidate.matchPercent}%`}
             </span>
           </div>
           <p className="truncate text-xs text-muted-foreground">{candidate.role}</p>

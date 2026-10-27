@@ -1,3 +1,5 @@
+vi.mock("@/modules/profile/hooks/use-profile", () => ({ useProfile: () => ({profile:null}) }));
+vi.mock("@/modules/profile/hooks/use-profile-photo", () => ({ useProfilePhoto: () => ({photoUrl:null}) }));
 import { mapEpic2Radar } from "@/modules/radar-chart/sprint2/radar-mapper";
 import { cloneElement, type ReactElement } from "react";
 import { cleanup, render, screen } from "@testing-library/react";

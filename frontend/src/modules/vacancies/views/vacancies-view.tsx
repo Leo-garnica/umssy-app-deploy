@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, BriefcaseBusiness, ArrowRight } from 'lucide-react';
+import { Search, BriefcaseBusiness, ArrowRight, MapPin } from 'lucide-react';
+import { getInitials } from '@/shared/utils/get-initials';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -89,25 +90,32 @@ export function VacanciesView({initialVacancyId,onInitialClose}:VacanciesViewPro
     finally{setBusy(false);}
   }
   return <main className="mx-auto w-full max-w-browse space-y-7">
-    <PageHeading title="Vacantes" description="Ofertas publicadas y vigentes. Postula con consentimiento explícito y revisa tus solicitudes." />
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4">
-      <Search aria-hidden="true" className="size-5 text-text-secondary" />
-      <Input type="search" aria-label="Buscar cargo, empresa o tecnología" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar cargo, empresa o tecnología" />
-      <span role="status" className="shrink-0 text-xs text-text-secondary">{filtered.length} vacante(s)</span>
+    <PageHeading title="Vacantes" description="Encuentra oportunidades laborales para egresados." />
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-surface p-4">
+      <div className="relative w-full max-w-xl"><Search aria-hidden="true" className="pointer-events-none absolute top-3 left-3 size-4 text-text-secondary" />
+      <Input className="pl-10" type="search" aria-label="Buscar cargo, empresa o tecnología" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por cargo, empresa o requisito" /></div>
+      <span role="status" className="shrink-0 text-xs text-text-secondary">{filtered.length} {filtered.length === 1 ? "vacante encontrada" : "vacantes encontradas"}</span>
     </div>
     {error&&<p role="alert" className="rounded-md border border-red-300 p-4 text-sm">{error} <Button variant="outline" onClick={()=>void reload()}>Reintentar</Button></p>}
     {loading?<p role="status">Cargando vacantes reales…</p>:
       filtered.length===0?<p className="rounded-lg border border-border p-8 text-center">No hay vacantes publicadas que coincidan con tu búsqueda.</p>:
       <div className="grid gap-4">{filtered.map(job=>{
         const a=applied.find(row=>row.jobOfferId===job.id);
-        return <article key={job.id} className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border bg-surface p-5">
-          <div className="min-w-0 flex-1"><h2 className="text-lg font-semibold">{job.title}</h2>
-            <p className="text-sm text-text-secondary">{job.company.name} · {job.modality} · {job.contractType} · {job.salaryRange}</p>
-            <p className="mt-3 line-clamp-2 text-sm">{job.description}</p>
+        return <article key={job.id} className="group grid grid-cols-1 items-start gap-5 rounded-lg border border-border bg-surface-soft/50 p-6 transition-colors hover:border-availability-border hover:bg-availability/30 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+          <div aria-hidden="true" className="flex size-12 items-center justify-center rounded-lg bg-accent text-base font-bold text-surface">{getInitials(job.company.name)}</div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-ink"><button type="button" onClick={()=>open(job.id)} className="text-left underline-offset-4 hover:text-accent hover:underline">{job.title}</button></h2>
+            <p className="mt-1 text-sm font-medium text-ink-soft">{job.company.name}</p>
+            <p className="mt-2 line-clamp-2 max-w-prose text-sm leading-relaxed text-text-secondary">{job.description}</p>
+            <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <div><dt className="sr-only">Salario</dt><dd className="rounded-md bg-interaction px-2.5 py-1 font-semibold text-accent tabular-nums">{job.salaryRange}</dd></div>
+              <div><dt className="sr-only">Modalidad</dt><dd className="flex items-center gap-1.5 text-ink-soft"><MapPin aria-hidden="true" className="size-4" />{job.modality}</dd></div>
+              <div><dt className="sr-only">Contrato</dt><dd className="flex items-center gap-1.5 text-ink-soft"><BriefcaseBusiness aria-hidden="true" className="size-4" />{job.contractType}</dd></div>
+            </dl>
             <div className="mt-3 flex flex-wrap gap-2">{job.skills.slice(0,6).map(skill=><span key={skill.id} className="rounded bg-interaction px-2 py-1 text-xs">{skill.name}</span>)}</div>
             {a&&<p role="status" className="mt-2 text-sm font-semibold">{label[a.state]}</p>}
           </div>
-          <Button type="button" variant="outline" onClick={()=>open(job.id)}><BriefcaseBusiness className="size-4" aria-hidden="true" /> Detalles y postulación <ArrowRight className="size-4" aria-hidden="true" /></Button>
+          <Button type="button" variant="ghost" className="self-center text-accent hover:text-accent" onClick={()=>open(job.id)}>Ver detalles<ArrowRight className="size-4 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" /></Button>
         </article>;
       })}</div>}
     <Dialog open={selectedId!==null} onOpenChange={open=>{if(!open)close();}}>

@@ -1,63 +1,277 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderWithQuery as render } from "@/shared/testing/render-with-query";
+import { cleanup, fireEvent,  screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "@/shared/services/api-client";
+import { saveAccessToken } from "@/shared/services/storage/access-token-storage";
+import { useLogin } from "../hooks/use-login";
 import { LoginView } from "./login-view";
 
-const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+const push = vi.fn();
+const replace = vi.fn();
+let authState: { roles: string[]; isLoading: boolean } = { roles: [], isLoading: false };
 
-afterEach(() => {
-  cleanup();
-  sessionStorage.clear();
-  vi.restoreAllMocks();
-  replace.mockClear();
-});
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace }),
+}));
 
-function submitLogin(role = "titulado") {
-  render(<LoginView />);
-  fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), {
-    target: { value: "prueba@umss.edu.bo" },
-  });
-  fireEvent.change(screen.getByPlaceholderText("********"), {
-    target: { value: "Prueba123" },
-  });
-  fireEvent.change(screen.getByLabelText("Rol", { exact: true }), { target: { value: role } });
-  fireEvent.click(screen.getByRole("button", { name: "Iniciar sesión" }));
-}
+vi.mock("../hooks/use-login", () => ({
+  useLogin: vi.fn(),
+}));
+
+vi.mock("@/shared/services/storage/access-token-storage", () => ({
+  saveAccessToken: vi.fn(),
+}));
+
+vi.mock("@/shared/contexts/auth-context", () => ({
+  useAuth: () => authState,
+}));
 
 describe("LoginView", () => {
-  it("stores the token and opens the profile after successful authentication", async () => {
-    const post = vi.spyOn(apiClient, "post").mockResolvedValueOnce({
-      data: { accessToken: "test-token", roleTag: "titulado" },
+  afterEach(() => {
+    authState = { roles: [], isLoading: false };
+    cleanup();
+    vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it("stores the returned access token and redirects after a successful login", async () => {
+    const login = vi.fn().mockResolvedValue({
+      accessToken: "returned-token",
+      roleTag: "titulado",
     });
-    submitLogin();
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/profile"));
-    expect(sessionStorage.getItem("accessToken")).toBe("test-token");
-    expect(post).toHaveBeenCalledWith("/auth/login", {
-      email: "prueba@umss.edu.bo", password: "Prueba123", roleTag: "titulado",
+    vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
+
+    render(<LoginView />);
+
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), {
+      target: { value: "person@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
+
+    await waitFor(() => {
+      expect(login).toHaveBeenCalledWith({
+        email: "person@example.com",
+        password: "secret",
+      });
+      expect(saveAccessToken).toHaveBeenCalledWith("returned-token");
+      expect(push).toHaveBeenCalledWith("/dashboard");
     });
   });
 
-  it.each([
-    ["administrativo", "/affinity-radar/review-queue"],
-    ["empresa", "/recruiters"],
-  ])("opens the available workspace after login as %s", async (roleTag, destination) => {
-    vi.spyOn(apiClient, "post").mockResolvedValueOnce({ data: { accessToken: "test-token", roleTag } });
-    submitLogin(roleTag);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
-    expect(sessionStorage.getItem("accessToken")).toBe("test-token");
-  });
+  it("navigates once after signing in even though the session now has roles", async () => {
+    vi.mocked(saveAccessToken).mockImplementation(() => {
+      authState = { roles: ["titulado"], isLoading: false };
+      return true;
+    });
+    const login = vi.fn().mockResolvedValue({ accessToken: "returned-token", roleTag: "titulado" });
+    vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
+    render(<LoginView />);
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), { target: { value: "person@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), { target: { value: "secret" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
 
-  it.each([
-    [{ isAxiosError: true, response: { status: 401 } }, "Correo o contraseña incorrectos."],
-    [{ isAxiosError: true, code: "ECONNABORTED" },
-      "No se pudo conectar con el servidor. Intenta nuevamente en unos momentos."],
-  ])("shows an actionable error and allows retrying", async (error, message) => {
-    vi.spyOn(apiClient, "post").mockRejectedValueOnce(error);
-    submitLogin();
-    expect(await screen.findByText(message)).toBeDefined();
-    expect(screen.getByRole("button", { name: "Iniciar sesión" })).toBeEnabled();
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenCalledWith("/dashboard");
     expect(replace).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem("accessToken")).toBeNull();
   });
+
+  it("redirects away from the form when a validated session already exists", async () => {
+    authState = { roles: ["administrativo"], isLoading: false };
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
+    render(<LoginView />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/affinity-radar/review-queue"));
+  });
+
+  async function submitLogin(login: unknown) {
+    vi.mocked(useLogin).mockReturnValue({ login: login as ReturnType<typeof useLogin>["login"], isLoading: false, error: null });
+    render(<LoginView />);
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), { target: { value: "person@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), { target: { value: "secret" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
+  }
+
+  it("el administrativo va a la bandeja del backoffice", async () => {
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: "t-admin", roleTag: "administrativo" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/affinity-radar/review-queue"));
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['/login?next=/profile/documents', '/profile/documents'],
+    ['/login?next=https://example.com', '/dashboard'],
+    ['/login?next=//example.com', '/dashboard'],
+  ])('respeta el retorno seguro desde %s hacia %s', async (url, destination) => {
+    window.history.replaceState({}, '', url);
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't', roleTag: 'titulado' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(destination));
+    expect(saveAccessToken).toHaveBeenCalledWith('t');
+  });
+
+  it.each([
+    ['/login?next=%2Freports%2Fhistory%3Fx%3D1', '/dashboard'],
+    ['/login?next=/profile/documents', '/profile/documents'],
+    ['/login?next=/affinity-radar/review-queue', '/dashboard'],
+    ['/login?next=/%5Cevil.com', '/dashboard'],
+    ['/login?next=/login', '/dashboard'],
+  ])('vuelve a la ruta privada válida pedida desde %s hacia %s', async (url, destination) => {
+    window.history.replaceState({}, '', url);
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't', roleTag: 'titulado' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(destination));
+  });
+
+  it('el administrativo vuelve a la pantalla del backoffice que pidió', async () => {
+    window.history.replaceState({}, '', '/login?next=/affinity-radar/review-queue');
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't-admin', roleTag: 'administrativo' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/affinity-radar/review-queue'));
+  });
+
+  it('al iniciar sesión pone la cookie marcadora sin el token', async () => {
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: 'token-secreto', roleTag: 'titulado' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    expect(document.cookie).toContain('umssy_session=1');
+    expect(document.cookie).not.toContain('token-secreto');
+    document.cookie = 'umssy_session=; Max-Age=0; Path=/';
+  });
+
+  it('mantiene el backoffice para administrativos aunque exista un retorno a pases', async () => {
+    window.history.replaceState({}, '', '/login?next=/profile/documents');
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't-admin', roleTag: 'administrativo' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/affinity-radar/review-queue'));
+  });
+
+  it.each(["titulado", "estudiante", "mentor", "empresa", "", "desconocido"])("el rol %j va a su portal", async (roleTag) => {
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: "t", roleTag }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith(roleTag === "empresa" ? "/recruiters" : "/dashboard"));
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("un login fallido no guarda el token ni redirige", async () => {
+    await submitLogin(vi.fn().mockResolvedValue(null));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Iniciar sesión" })).toBeInTheDocument());
+    expect(saveAccessToken).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("con los campos vacíos muestra los mensajes en español y no llama al servidor", async () => {
+    const login = vi.fn();
+    vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
+    render(<LoginView />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
+
+    expect(await screen.findByText("Ingresa tu correo electrónico")).toBeInTheDocument();
+    expect(screen.getByText("Ingresa tu contraseña")).toBeInTheDocument();
+    expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("aria-invalid", "true");
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it("con un correo mal escrito muestra el mensaje de formato y no llama al servidor", async () => {
+    const login = vi.fn();
+    vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
+    render(<LoginView />);
+
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), { target: { value: "lionel.messi" } });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), { target: { value: "Clave-Segura-9" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
+
+    expect(await screen.findByText("Ingresa un correo electrónico válido")).toBeInTheDocument();
+    expect(screen.queryByText("Ingresa tu contraseña")).toBeNull();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it("al corregir los datos el mensaje desaparece y se envía el formulario", async () => {
+    const login = vi.fn().mockResolvedValue(null);
+    vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
+    render(<LoginView />);
+    const form = screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!;
+
+    fireEvent.submit(form);
+    expect(await screen.findByText("Ingresa tu correo electrónico")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), { target: { value: "lionel.messi@gmail.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), { target: { value: "Clave-Segura-9" } });
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Ingresa tu correo electrónico")).toBeNull();
+  });
+
+  it("el token queda guardado antes de navegar", async () => {
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: "t-admin", roleTag: "administrativo" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    expect(vi.mocked(saveAccessToken).mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0]);
+    expect(saveAccessToken).toHaveBeenCalledWith("t-admin");
+  });
+
+  it("muestra los campos con su etiqueta y el autocompletado correcto", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
+    render(<LoginView />);
+
+    expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Contraseña")).toHaveAttribute("autocomplete", "current-password");
+    expect(screen.queryByRole("combobox", { name: "Rol" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "UMSSY, Acreditación y comunidad" })).toBeInTheDocument();
+  });
+
+  it("enlaza a la solicitud de acceso", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
+    render(<LoginView />);
+
+    expect(screen.getByRole("link", { name: "Solicitar acceso" })).toHaveAttribute("href", "/request-access");
+  });
+
+  it("muestra el error en una alerta accesible", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: "Correo o contraseña incorrectos" });
+    render(<LoginView />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Correo o contraseña incorrectos");
+  });
+
+  it("no muestra alerta sin error", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
+    render(<LoginView />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("deshabilita el botón y muestra el estado de carga", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: true, error: null });
+    render(<LoginView />);
+
+    const button = screen.getByRole("button", { name: "Ingresando..." });
+    expect(button).toBeDisabled();
+  });
+
+  it("uses the combined roles returned by the server when resuming a mentor route", async () => {
+    window.history.replaceState({}, "", "/login?next=/profile/radar");
+    await submitLogin(vi.fn().mockResolvedValue({ accessToken: "multi", roleTag: "administrativo", roles: ["administrativo", "mentor"] }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/profile/radar"));
+  });
+  it("reveals and hides the password without changing it or submitting", () => {
+    const login=vi.fn();
+    vi.mocked(useLogin).mockReturnValue({login,isLoading:false,error:null});
+    render(<LoginView />);
+    const input=screen.getByLabelText("Contraseña");
+    fireEvent.change(input,{target:{value:"secreto"}});
+    fireEvent.click(screen.getByRole("button",{name:"Mostrar contraseña"}));
+    expect(input).toHaveAttribute("type","text");
+    expect(input).toHaveValue("secreto");
+    fireEvent.click(screen.getByRole("button",{name:"Ocultar contraseña"}));
+    expect(input).toHaveAttribute("type","password");
+    expect(login).not.toHaveBeenCalled();
+  });
+
 });

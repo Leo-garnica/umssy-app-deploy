@@ -1,96 +1,144 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { BrandLogo } from "@/shared/components/layout/brand-logo";
 import { useRouter } from "next/navigation";
+import { CircleAlert, LoaderCircle, Eye, EyeOff, ArrowLeft, ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useLogin } from "../hooks/use-login";
-import type { RoleTag } from "../types/auth-types";
-import { saveAccessToken } from "@/shared/services/storage/access-token-storage";
-import { getHomePath } from "../utils/get-home-path";
-
-const ROLE_OPTIONS: { value: RoleTag; label: string }[] = [
-  { value: "titulado", label: "Titulado" },
-  { value: "estudiante", label: "Estudiante" },
-  { value: "mentor", label: "Mentor" },
-  { value: "empresa", label: "Empresa" },
-  { value: "administrativo", label: "Administrativo" },
-];
-
-const selectClassName =
-  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30";
+import { useRedirectAuthenticated } from "../hooks/use-redirect-authenticated";
+import { NEXT_PARAM } from "../constants/session.constants";
+import { resolvePostLoginPath } from "../utils/resolve-post-login-path";
+import { startSession } from "../utils/session";
+import { validateLoginFields, type LoginFieldErrors } from "../utils/validate-login-fields";
 
 export function LoginView() {
   const router = useRouter();
   const { login, isLoading, error } = useLogin();
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [roleTag, setRoleTag] = useState<RoleTag>("titulado");
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  useRedirectAuthenticated(!isSigningIn);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const result = await login({ email, password, roleTag });
+    const errors = validateLoginFields(email, password);
+    setFieldErrors(errors);
+    if (errors.email || errors.password) return;
+    const result = await login({ email, password });
     if (result) {
-      saveAccessToken(result.accessToken);
-      router.replace(getHomePath([result.roleTag]));
+      setIsSigningIn(true);
+      startSession(result.accessToken);
+      const next = new URLSearchParams(window.location.search).get(NEXT_PARAM);
+      router.push(resolvePostLoginPath(result.roles ?? result.roleTag, next));
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="grid min-h-dvh bg-surface lg:grid-cols-(--grid-template-columns-login)">
+      <aside className="relative hidden lg:block">
+        <Image src="/images/campus-fcyt.webp" alt="" fill priority sizes="60vw" className="object-cover" />
+      </aside>
+      <div className="flex min-h-dvh flex-col px-8 py-9 lg:px-10 xl:px-12">
+        <Link href="/" className="flex items-center gap-2 self-start text-sm font-medium text-accent"><ArrowLeft className="size-4" aria-hidden="true" />Volver al inicio</Link>
+        <div className="flex flex-1 items-center justify-center py-12">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm"
+        noValidate
+        className="w-full max-w-login-form animate-in duration-300 ease-out fade-in slide-in-from-right-2"
       >
-        <h1 className="mb-1 text-2xl font-bold text-foreground">Iniciar sesión</h1>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Comunidad verificada de la UMSS
+        <Link href="/" aria-label="UMSSY, volver al inicio" className="mb-8 inline-block"><BrandLogo priority className="w-56" /></Link>
+        <h1 className="font-tight text-4xl font-extrabold text-ink">Iniciar sesión</h1>
+        <p className="mt-3 mb-8 text-base text-text-secondary">
+          Ingresa con tu cuenta de UMSSY.
         </p>
 
-        <label htmlFor="login-role" className="mb-1 block text-sm font-medium text-foreground">Rol</label>
-        <select
-          id="login-role"
-          value={roleTag}
-          onChange={(event) => setRoleTag(event.target.value as RoleTag)}
-          className={`mb-4 ${selectClassName}`}
+        <div className="mb-4">
+          <Label htmlFor="login-email" className="mb-1.5 text-[12.5px] font-semibold text-ink">
+            Correo electrónico
+          </Label>
+          <div className="relative"><Mail className="pointer-events-none absolute top-4 left-4 size-5 text-accent" aria-hidden="true" /><Input
+            id="login-email"
+            type="email"
+            required
+            autoComplete="username"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            aria-invalid={fieldErrors.email ? true : undefined}
+            aria-describedby={fieldErrors.email ? "login-email-hint login-email-error" : "login-email-hint"}
+            className="h-13 rounded-lg border-border-strong bg-surface px-12 text-base text-ink focus-visible:border-accent focus-visible:ring-accent/15 md:text-base"
+            placeholder="nombre@ejemplo.com"
+          /></div>
+          <p id="login-email-hint" className="mt-2 text-xs text-text-secondary">Usa el correo con el que solicitaste acceso.</p>
+          {fieldErrors.email ? (
+            <p id="login-email-error" role="alert" className="mt-1.5 text-[13px] font-medium text-danger">
+              {fieldErrors.email}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mb-6">
+          <Label htmlFor="login-password" className="mb-1.5 text-[12.5px] font-semibold text-ink">
+            Contraseña
+          </Label>
+          <div className="relative"><LockKeyhole className="pointer-events-none absolute top-4 left-4 size-5 text-accent" aria-hidden="true" /><Input
+            id="login-password"
+            type={isPasswordVisible ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            aria-invalid={fieldErrors.password ? true : undefined}
+            aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
+            className="h-13 rounded-lg border-border-strong bg-surface px-12 text-base text-ink focus-visible:border-accent focus-visible:ring-accent/15 md:text-base"
+            placeholder="Tu contraseña"
+          />
+          <Button type="button" variant="ghost" size="icon" aria-label={isPasswordVisible ? "Ocultar contraseña" : "Mostrar contraseña"} aria-pressed={isPasswordVisible} onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute top-1.5 right-1.5">{isPasswordVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</Button></div>
+          {fieldErrors.password ? (
+            <p id="login-password-error" role="alert" className="mt-1.5 text-[13px] font-medium text-danger">
+              {fieldErrors.password}
+            </p>
+          ) : null}
+        </div>
+
+        {error ? (
+          <Alert className="mb-4 border-danger/25 bg-surface text-danger">
+            <CircleAlert aria-hidden="true" />
+            <AlertDescription className="font-medium text-danger">{error}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <Button
+          type="submit"
+          variant="institutional"
+          disabled={isLoading}
+          className="h-12 w-full text-base font-extrabold"
         >
-          {ROLE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-
-        <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-foreground">
-          Correo electrónico
-        </label>
-        <Input
-          id="login-email"
-          type="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className="mb-4"
-          placeholder="nombre@ejemplo.com"
-        />
-
-        <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-foreground">Contraseña</label>
-        <Input
-          id="login-password"
-          type="password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="mb-6"
-          placeholder="********"
-        />
-
-        {error ? <p className="mb-4 text-sm font-medium text-destructive">{error}</p> : null}
-
-        <Button type="submit" disabled={isLoading} className="w-full">
+          {isLoading ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : null}
           {isLoading ? "Ingresando..." : "Iniciar sesión"}
+          {!isLoading ? <ArrowRight aria-hidden="true" /> : null}
         </Button>
-      </form>
-    </div>
+
+        <p className="mt-8 border-t border-border pt-6 text-center text-sm text-text-secondary">
+          ¿Aún no tienes cuenta?{" "}
+          <Link
+            href="/request-access"
+            className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          >
+            Solicitar acceso
+          </Link>
+        </p>
+        <div className="mt-6 border-t border-border pt-6 text-center"><Link href="/workshops" className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">Explorar talleres sin iniciar sesión<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
+      </form></div>
+        <p className="text-center text-xs text-text-secondary">UMSSY · Universidad Mayor de San Simón</p>
+      </div>
+    </main>
   );
 }

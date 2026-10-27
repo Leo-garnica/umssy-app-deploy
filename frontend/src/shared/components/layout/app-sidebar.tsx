@@ -32,7 +32,9 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
   const { roles } = useAuth();
-  const { open, setOpen } = useSidebar();
+  const { open: desktopOpen, setOpen: setDesktopOpen, openMobile, setOpenMobile, isMobile } = useSidebar();
+  const open = isMobile ? openMobile : desktopOpen;
+  const setOpen = isMobile ? setOpenMobile : setDesktopOpen;
   const closeRef = useRef<HTMLButtonElement>(null);
   const previousOpen = useRef(open);
   useEffect(() => {

@@ -32,6 +32,7 @@ export interface Vacancy {
 export type CandidateStatus = "active" | "discarded";
 
 export interface CandidateWithMatch extends Candidate {
+  hasRadar?: boolean;
   matchPercent: number;
   gaps: AxisScores;
   status: CandidateStatus;

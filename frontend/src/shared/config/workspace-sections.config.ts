@@ -8,12 +8,12 @@ export const WORKSPACE_SECTIONS: readonly WorkspaceSectionProps[] = [
     items: [
       { label: "Resumen", href: "/profile", group: "Perfil" },
       { label: "Configuración del perfil", href: "/profile/settings", group: "Perfil" },
-      { label: "Documentos y CV", href: "/profile/documents", group: "Documentos" },
-      { label: "Radar de afinidad", href: "/profile/radar", group: "Afinidad" },
+      { label: "Documentos y CV", href: "/profile/documents", group: "Documentos y afinidad" },
+      { label: "Radar de afinidad", href: "/profile/radar", group: "Documentos y afinidad" },
     ],
   },
   {
-    id: "company", label: "Mi empresa", icon: Building2, patterns: [/^\/(?:recruiters|matching)(?:\/|$)/],
+    id: "company", label: "Empresas", icon: Building2, patterns: [/^\/(?:recruiters|matching)(?:\/|$)/],
     items: [
       { label: "Portal de empresa", href: "/recruiters" },
       { label: "Publicar vacante", href: "/recruiters/job-offers/new" },

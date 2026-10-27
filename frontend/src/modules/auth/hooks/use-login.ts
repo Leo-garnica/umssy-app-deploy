@@ -18,9 +18,9 @@ export function useLogin() {
       if (isAxiosError(cause) && cause.response?.status === 401) {
         setError("Correo o contraseña incorrectos.");
       } else if (isAxiosError(cause) && cause.response?.status === 403) {
-        setError("El rol elegido no corresponde a tu cuenta.");
+        setError("Tu cuenta no tiene un rol habilitado.");
       } else if (isAxiosError(cause) && cause.response?.status === 400) {
-        setError("Revisa el correo, la contraseña y el rol seleccionados.");
+        setError("Revisa el correo y la contraseña.");
       } else {
         setError("No se pudo conectar con el servidor. Intenta nuevamente en unos momentos.");
       }

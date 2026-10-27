@@ -14,8 +14,8 @@ describe("VacanciesView from the API", () => {
     const search = screen.getByRole("searchbox", { name: "Buscar cargo, empresa o tecnología" });
     fireEvent.change(search, { target: { value: "no-match" } });
     expect(screen.getByText("No hay vacantes publicadas que coincidan con tu búsqueda.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Detalles y postulación" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver detalles" })).not.toBeInTheDocument();
     fireEvent.change(search, { target: { value: "" } });
-    expect(screen.getByRole("button", { name: "Detalles y postulación" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver detalles" })).toBeInTheDocument();
   });
 });

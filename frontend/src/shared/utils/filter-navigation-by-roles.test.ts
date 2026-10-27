@@ -39,12 +39,13 @@ describe("Role navigation", () => {
 
   it("shows the profile pages of this deploy to a graduate", () => {
     expect(labels(filterNavigationByRoles(SIDEBAR_NAVIGATION, ["titulado"]))).toEqual([
+      "Inicio",
       "Mi perfil > Resumen > Configuración del perfil > Documentos y CV > Radar de afinidad",
       "Vacantes",
     ]);
   });
 
   it("shows only radar review to an administrative account", () => {
-    expect(labels(filterNavigationByRoles(SIDEBAR_NAVIGATION, ["administrativo"]))).toEqual(["Revisión de radares"]);
+    expect(labels(filterNavigationByRoles(SIDEBAR_NAVIGATION, ["administrativo"]))).toEqual(["Inicio", "Revisión de radares"]);
   });
 });

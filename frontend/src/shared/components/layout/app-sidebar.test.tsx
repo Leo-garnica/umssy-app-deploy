@@ -29,7 +29,7 @@ describe("AppSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mi perfil" }));
     const navigation = screen.getByRole("navigation", { name: "Menú principal" });
     const hrefs = within(navigation).getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/profile", "/profile/settings", "/profile/documents", "/profile/radar", "/vacancies"]);
+    expect(hrefs).toEqual(["/dashboard", "/profile", "/profile/settings", "/profile/documents", "/profile/radar", "/vacancies"]);
   });
 
   it.each([
@@ -46,7 +46,7 @@ describe("AppSidebar", () => {
     renderSidebar();
     const navigation = screen.getByRole("navigation", { name: "Menú principal" });
     const top = within(navigation).getAllByRole("listitem").filter((item) => item.getAttribute("data-slot") === "sidebar-menu-item");
-    expect(top).toHaveLength(2);
+    expect(top).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Mi perfil" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Vacantes" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mi empresa" })).not.toBeInTheDocument();

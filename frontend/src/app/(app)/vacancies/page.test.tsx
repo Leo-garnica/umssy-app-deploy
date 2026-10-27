@@ -38,13 +38,13 @@ describe("Vacancy routes", () => {
 
     expect(screen.getAllByRole("navigation", { name: "Menú principal" })).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Vacantes", level: 1 })).toBeDefined();
-    expect(await screen.findByRole("button", { name: "Detalles y postulaci\u00f3n" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Ver detalles" })).toBeInTheDocument();
   });
 
   it("opens details over the listing and restores the listing on Escape", async () => {
     const user = userEvent.setup();
     render(<AppLayout><VacanciesPage /></AppLayout>);
-    await user.click(await screen.findByRole("button", { name: "Detalles y postulaci\u00f3n" }));
+    await user.click(await screen.findByRole("button", { name: "Ver detalles" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

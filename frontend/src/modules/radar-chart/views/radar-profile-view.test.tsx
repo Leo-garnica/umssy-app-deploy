@@ -1,3 +1,5 @@
+vi.mock("@/modules/profile/hooks/use-profile", () => ({ useProfile: () => ({profile:null}) }));
+vi.mock("@/modules/profile/hooks/use-profile-photo", () => ({ useProfilePhoto: () => ({photoUrl:null}) }));
 import { cloneElement, type ReactElement } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

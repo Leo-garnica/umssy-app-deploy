@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-27",
+  "branch": "fix/develop-ui-epic2-epic3",
+  "targetRepository": "Leo-garnica/umssy-app-deploy",
+  "baseCommit": "f70d24d2b2941b42424ac81320944b8f3a9d1420",
+  "upstream": {
+    "repository": "UMSSY/umssy-app",
+    "branch": "develop",
+    "commit": "de4bdfe44d75429160ee8c3c6e5c2bb15e5a0a19"
+  },
+  "scope": "Inicio, login y UI de las épicas 2/3 con servicios reales del deploy",
+  "modifiedFilesVerified": 165,
+  "protectedFilesUnchanged": [
+    "backend/prisma",
+    "backend/prisma.config.ts",
+    "backend/prisma7.config.ts",
+    "backend/src/main.ts",
+    "backend/package.json",
+    "backend/pnpm-lock.yaml",
+    "frontend/package.json",
+    "frontend/pnpm-lock.yaml",
+    "frontend/next.config.ts",
+    "frontend/vitest.config.mts"
+  ],
+  "parity": [
+    {
+      "file": "src/modules/auth/views/login-view.tsx",
+      "sha256": "db3dec60d759ad84c2f390ed120cb257938e2d2b568dfe4756a8712f04d8df62",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/app/globals.css",
+      "sha256": "e41be493a7fbce47b7fcb46978a818c469073cdedc1ecd68135958004a384fb1",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/components/home-hero.tsx",
+      "sha256": "c24cf5ddf9c41709d088fd9103af71a021ece9697f22bfcdb5fa05a9a12a71d1",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/components/home-hero-carousel.tsx",
+      "sha256": "213c699849eb5812fc79352efca3ffc60719ccada6a909ca71d8f072af50c868",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/components/home-features.tsx",
+      "sha256": "01bf698da133d4142b57964e29c8011a12cf97e8b8c975e3fac92a37a0ea7aba",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/components/home-audiences.tsx",
+      "sha256": "4aacc3f51df90cb19156b3126296836854719315f990a37b01ba01a4c324d336",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/components/home-steps.tsx",
+      "sha256": "5fd8d5caee5f139f08435941e2d48ac095502e9bb1fc36021354bb0cc93c9f4f",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "src/modules/home/constants/home.constants.ts",
+      "sha256": "e758c324af090330632e536865235cc4bf55513db174bc250eab75e47a5cc234",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "public/images/campus-fcyt.webp",
+      "sha256": "4993a15a93d5e9c14a68883fc17c3fbd8f464272e3e38259e532c508f1f4224b",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "public/images/auditorio-umss.webp",
+      "sha256": "d25538ee9ecfe7e614950c1cb9d70c789558864ba47b7ed8e0ee7be64804c210",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "public/images/campus-umss.webp",
+      "sha256": "bcb104b4c66c97932275efc4537d96d304b6d56b81455954442f15b237720929",
+      "identicalToDevelop": true
+    },
+    {
+      "file": "public/images/scesi-umss.webp",
+      "sha256": "c7f8082fc00a6c339159bd18393048b0fceea37e4d796d5be96145307df823b2",
+      "identicalToDevelop": true
+    }
+  ],
+  "validation": {
+    "frontend": {
+      "passed": 1645,
+      "failed": 0
+    },
+    "backend": {
+      "passed": 1021,
+      "failed": 0,
+      "skipped": 9
+    },
+    "http": {
+      "passed": 25,
+      "artifact": "http-tests.log"
+    },
+    "browser": {
+      "passed": 26,
+      "groups": [
+        {
+          "file": "ui-design-results.json",
+          "passed": 6,
+          "results": [
+            "login con foto del campus, logo, distribución 60/40 y controles de develop",
+            "login adaptable a 320 px sin desbordamiento",
+            "portada de develop con imágenes reales y navegación pública",
+            "enlaces públicos fuera de alcance explican su disponibilidad sin formularios falsos ni 404",
+            "autenticación real con dos campos y retorno a documentos solicitado antes del login",
+            "login administrativo y de empresa redirigen a sus espacios reales sin selector de rol"
+          ],
+          "errors": []
+        },
+        {
+          "file": "ui-results.json",
+          "passed": 5,
+          "results": [
+            "login real y habilidad manual guardada desde la UI",
+            "guardar experiencia actualiza habilidades detectadas sin recargar la página",
+            "aprobación real, radar publicado y detalle de evidencia del propietario",
+            "móvil sin desbordamiento horizontal y eliminación retira el aporte aprobado del radar",
+            "cerrar sesión y entrar con otro usuario no reutiliza el perfil anterior"
+          ],
+          "errors": []
+        },
+        {
+          "file": "ui-certification-results.json",
+          "passed": 4,
+          "results": [
+            "alta de certificación con campos y PDF desde una sola operación de UI",
+            "archivo inválido conserva los campos y el respaldo guardados previamente",
+            "nuevo login recupera nombre, fecha y respaldo; editar campos conserva el archivo",
+            "radar a 320 px sin desbordamiento y menú móvil accesible"
+          ],
+          "errors": []
+        },
+        {
+          "file": "ui-epic3-results.json",
+          "passed": 5,
+          "results": [
+            "empresa autenticada publica desde los tres pasos con su vínculo real y persiste la vacante",
+            "titulado ve la vacante real y postula desde UI con consentimientos independientes",
+            "la empresa ve al postulante y su radar publicado en matching",
+            "una cuenta sin empresa muestra el estado correcto y no hereda la empresa de otra sesión",
+            "login administrativo llega a revisión y los permisos de empresa se aplican en la UI"
+          ],
+          "errors": []
+        },
+        {
+          "file": "ui-company-results.json",
+          "passed": 6,
+          "results": [
+            "portal de empresa muestra las vacantes reales de su vínculo",
+            "buscar y limpiar recupera la lista real de ofertas",
+            "detalles de la vacante usan la oferta autorizada y los campos de develop",
+            "ver postulantes abre la vacante correcta de la lista",
+            "radar comparativo de develop abre las evidencias reales al pulsar un punto",
+            "portal y menú de empresa funcionan a 320 px sin desbordamiento"
+          ],
+          "errors": []
+        }
+      ]
+    },
+    "lint": {
+      "frontend": {
+        "errors": 0,
+        "warnings": 0
+      },
+      "backend": {
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    "builds": {
+      "frontend": "next build: correcto, incluye TypeScript",
+      "backend": "tsc -p tsconfig.build.json: correcto"
+    },
+    "whitespace": "git diff --check: correcto",
+    "coverage": {
+      "statements": {
+        "total": 4577,
+        "covered": 3930,
+        "skipped": 0,
+        "pct": 85.86
+      },
+      "branches": {
+        "total": 3581,
+        "covered": 2881,
+        "skipped": 0,
+        "pct": 80.45
+      },
+      "functions": {
+        "total": 1520,
+        "covered": 1234,
+        "skipped": 0,
+        "pct": 81.18
+      },
+      "lines": {
+        "total": 3973,
+        "covered": 3552,
+        "skipped": 0,
+        "pct": 89.4
+      }
+    }
+  },
+  "environment": {
+    "database": "PostgreSQL desechable en 127.0.0.1:55434 / umssy_epic2_qa_ui",
+    "frontend": "Compilaciones de producción locales en 127.0.0.1:13002",
+    "backend": "Nest local en 127.0.0.1:18082",
+    "browserApi": "Interceptada y dirigida exclusivamente al backend local; hosts externos bloqueados",
+    "productionDatabaseModified": false,
+    "assistantActions": {
+      "commitCreated": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "userSubmittedUiCommits": [
+      "f3bc844",
+      "ebf3542",
+      "b0035e5"
+    ]
+  },
+  "artifactsDirectory": "C:/Users/Leo/AppData/Local/Temp/umssy-ui-develop-20261027",
+  "ciPolicyAdaptation": {
+    "approvedByUser": true,
+    "repository": "Leo-garnica/umssy-app-deploy",
+    "file": ".github/workflows/pr-standards.yml",
+    "policyChecks": 20,
+    "evidence": "ci-deploy-verificacion.json"
+  }
+}

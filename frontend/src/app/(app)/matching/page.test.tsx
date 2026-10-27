@@ -12,6 +12,7 @@ vi.mock("@/modules/radar-chart/sprint2-integration/radar-integration-api", async
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   RadarChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Tooltip: () => null, Text: ({children}:{children:ReactNode}) => <text>{children}</text>,
   PolarGrid: () => null, PolarAngleAxis: () => null, PolarRadiusAxis: () => null,
   Radar: ({ dot }: { dot?: boolean | ((props: { cx: number; cy: number; index: number }) => ReactNode) }) => typeof dot === "function" ? <svg>{dot({ cx: 20, cy: 20, index: 3 })}</svg> : null,
 }));
@@ -30,7 +31,7 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); });
 describe("MatchingPage with authorized API data", () => {
   it("loads the candidates for the company's selected vacancy", async () => {
     render(<MatchingPage />);
-    expect(screen.getByRole("heading", { name: "Postulantes por vacante" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Buscar candidatos" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Persona Alfa" })).toBeInTheDocument();
     expect(radarIntegrationApi.applicants).toHaveBeenCalledWith("job-1");
     expect(screen.getByText("Contacto no compartido", { exact: false })).toBeInTheDocument();
@@ -39,14 +40,14 @@ describe("MatchingPage with authorized API data", () => {
   it("clears evidence when filtering changes the effective candidate, including on API failure", async () => {
     render(<MatchingPage />);
     await screen.findByRole("heading", { name: "Persona Alfa" });
-    const search = screen.getByRole("searchbox", { name: "Buscar postulante" });
-    fireEvent.click(screen.getByRole("button", { name: "Ver evidencias de QA" }));
+    const search = screen.getByRole("searchbox", { name: "Buscar candidato" });
+    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
     expect(await screen.findByText("Evidencia de Alfa")).toBeInTheDocument();
     fireEvent.change(search, { target: { value: "Beta" } });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidencia de Alfa")).not.toBeInTheDocument();
     vi.mocked(radarIntegrationApi.applicantAreaEvidence).mockRejectedValueOnce(new Error("unavailable"));
-    fireEvent.click(screen.getByRole("button", { name: "Ver evidencias de QA" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
     await screen.findByRole("alert");
     expect(radarIntegrationApi.applicantAreaEvidence).toHaveBeenLastCalledWith("application-b", "qa");
     expect(screen.queryByText("Evidencia de Alfa")).not.toBeInTheDocument();
@@ -58,7 +59,7 @@ describe("MatchingPage with authorized API data", () => {
     render(<MatchingPage />);
     await screen.findByRole("heading", { name: "Persona Alfa" });
     const betaButton = screen.getByRole("button", { name: /Persona Beta/ });
-    fireEvent.click(screen.getByRole("button", { name: "Ver evidencias de QA" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
     await waitFor(() => expect(radarIntegrationApi.applicantAreaEvidence).toHaveBeenCalled());
     fireEvent.click(betaButton);
     await act(async () => { release(evidence); });
@@ -69,8 +70,7 @@ describe("MatchingPage with authorized API data", () => {
   it("requests the newly selected vacancy", async () => {
     render(<MatchingPage />);
     await screen.findByRole("heading", { name: "Persona Alfa" });
-    fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "Segunda vacante" }));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "job-2" } });
     await waitFor(() => expect(radarIntegrationApi.applicants).toHaveBeenLastCalledWith("job-2"));
     expect(await screen.findByRole("heading", { name: "Postulantes · Segunda vacante" })).toBeInTheDocument();
   });
@@ -78,8 +78,8 @@ describe("MatchingPage with authorized API data", () => {
   it("does not fabricate candidates when a search has no results", async () => {
     render(<MatchingPage />);
     await screen.findByRole("heading", { name: "Persona Alfa" });
-    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar postulante" }), { target: { value: "missing" } });
-    expect(screen.getByText("No se encontraron candidatos.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar candidato" }), { target: { value: "missing" } });
+    expect(screen.getByText(/No se encontraron candidatos para/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Persona Alfa" })).not.toBeInTheDocument();
   });
 });

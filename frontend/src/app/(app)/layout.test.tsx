@@ -5,13 +5,13 @@ import { clearAccessToken, saveAccessToken } from "@/shared/services/storage/acc
 import AppLayout from "./layout";
 
 const route = vi.hoisted(() => ({ pathname: "/profile" }));
-vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.pathname, useRouter: () => ({ replace: vi.fn() }) }));
 
-vi.mock("@/modules/auth/components/auth-guard", () => ({
-  AuthGuard: ({ children }: { children: ReactNode }) => children,
+vi.mock("@/modules/auth/components/session-gate", () => ({
+  SessionGate: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock("@/shared/components/layout", () => ({
+vi.mock("@/shared/components/layout/app-shell", () => ({
   AppShell: ({ children }: { children: ReactNode }) => (
     <div data-testid="app-shell">{children}</div>
   ),

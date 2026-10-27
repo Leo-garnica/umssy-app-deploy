@@ -8,7 +8,7 @@ afterEach(cleanup);
 describe("ColaRevisionPage", () => {
   it("renders the persistent review queue", async () => {
     render(<ColaRevisionPage />);
-    expect(screen.getByRole("heading", { name: "Revisión documental y de radares" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Revisión de radares" })).toBeInTheDocument();
     expect(await screen.findByText("No hay elementos en esta categoría.")).toBeInTheDocument();
   });
   it("offers the current document review filters", () => {

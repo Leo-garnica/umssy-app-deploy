@@ -129,6 +129,8 @@ export function RadarChart({
                 fill={item.color}
                 fillOpacity={item.id === "candidate" ? 0.15 : 0}
                 strokeWidth={item.id === "target" ? 3 : 2.5}
+                activeDot={false}
+                isAnimationActive={false}
                 strokeDasharray={item.id === "target" ? "4 3" : undefined}
                 dot={
                   item.id === "candidate"

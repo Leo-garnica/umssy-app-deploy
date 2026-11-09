@@ -25,7 +25,7 @@ Para crear la primera cuenta administrativa, ejecuta `pnpm seed:admin --email TU
 | Versión de Node.js | 22.x | 22.x |
 | Instalación | `pnpm install --frozen-lockfile` | `pnpm install --frozen-lockfile` |
 | Build | `pnpm build` | `pnpm vercel-build` |
-| Directorio de salida | Predeterminado | Predeterminado |
+| Directorio de salida | Predeterminado | `dist` (definido en `backend/vercel.json`) |
 
 Activa `ENABLE_EXPERIMENTAL_COREPACK=1` en ambos proyectos para usar pnpm 12.4.2, la versión declarada en sus archivos `package.json`. [Configuración de Corepack en Vercel](https://vercel.com/docs/builds/configure-a-build#corepack)
 

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createWorker, OEM, type ImageLike } from 'tesseract.js';
 
 export type TesseractModel = 'default' | '4.0.0_best';
@@ -10,8 +11,12 @@ export async function createTesseractWorker(
   if (!['default', '4.0.0_best'].includes(model)) {
     throw new Error(`Unsupported Tesseract model: ${model}`);
   }
+  const modelDir =
+    process.env.OCR_MODEL_DIR ??
+    fileURLToPath(new URL('../../../ocr-models/', import.meta.url));
+
   return createWorker(languages, OEM.LSTM_ONLY, {
-    langPath: resolve(process.env.OCR_MODEL_DIR ?? 'ocr-models', model),
+    langPath: resolve(modelDir, model),
     gzip: false,
     cacheMethod: 'none',
   });

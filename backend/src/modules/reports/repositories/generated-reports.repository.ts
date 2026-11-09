@@ -1,0 +1,57 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../../common/prisma/prisma.service.js';
+import { toGeneratedReport } from '../mappers/generated-report.mapper.js';
+import {
+  REPORT_TYPES,
+  type GeneratedReport,
+  type GeneratedReportsPage,
+  type RegisterGeneratedReportInput,
+  type ReportHistoryFilters,
+} from '../types/generated-report.types.js';
+
+@Injectable()
+export class GeneratedReportsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findPage(
+    userId: string,
+    skip: number,
+    take: number,
+    { reportType, search, snapshotAt }: ReportHistoryFilters = {},
+  ): Promise<GeneratedReportsPage> {
+    const where = {
+      userId,
+      reportType: reportType ?? { in: [...REPORT_TYPES] },
+      ...(search && {
+        reportName: { contains: search, mode: 'insensitive' as const },
+      }),
+      ...(snapshotAt && { createdAt: { lte: new Date(snapshotAt) } }),
+    };
+    const [records, total] = await Promise.all([
+      this.prisma.adminExportHistory.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take,
+      }),
+      this.prisma.adminExportHistory.count({ where }),
+    ]);
+
+    return { reports: records.map(toGeneratedReport), total };
+  }
+
+  async create(
+    userId: string,
+    input: RegisterGeneratedReportInput,
+  ): Promise<GeneratedReport> {
+    const record = await this.prisma.adminExportHistory.create({
+      data: {
+        userId,
+        reportName: input.fileName,
+        reportType: input.reportType,
+      },
+    });
+
+    return toGeneratedReport(record);
+  }
+}

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatBolivianos, formatSalaryRange } from '../utils/format-salary-range.js';
+import {
+  formatBolivianos,
+  formatSalaryRange,
+} from '../utils/format-salary-range.js';
 
 describe('formatBolivianos', () => {
   it('agrega el prefijo Bs y el separador de miles', () => {
@@ -12,6 +15,10 @@ describe('formatBolivianos', () => {
 describe('formatSalaryRange', () => {
   it('muestra un monto fijo cuando no hay máximo', () => {
     expect(formatSalaryRange(5000)).toBe('Bs 5.000');
+  });
+
+  it('muestra a convenir cuando no hay salario', () => {
+    expect(formatSalaryRange()).toBe('A convenir');
   });
 
   it('muestra el rango con un solo prefijo', () => {

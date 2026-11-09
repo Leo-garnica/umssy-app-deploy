@@ -16,6 +16,13 @@ vi.mock("../services/work-experience.service", () => ({
   },
 }));
 
+vi.mock("@/modules/matching/services/skills-analysis.service", () => ({
+  skillsAnalysisService: {
+    analyzeExperience: vi.fn().mockResolvedValue({ experienceId: "experience-1", skills: [], processingTimeMs: 0 }),
+    previewExperience: vi.fn().mockResolvedValue({ experienceId: "experience-1", skills: [], processingTimeMs: 0 }),
+  },
+}));
+
 const CURRENT_JOB: WorkExperienceItem = {
   id: "experience-1",
   companyName: "Synapse Labs",
@@ -83,6 +90,7 @@ describe("WorkExperienceView", () => {
     await user.type(screen.getByLabelText(/Cargo/), "Desarrolladora web junior");
     fireEvent.change(screen.getByLabelText(/Desde/), { target: { value: "2025-03-01" } });
     await user.click(screen.getByRole("checkbox", { name: "Trabajo actualmente aquí" }));
+    await user.type(screen.getByLabelText(/Descripción de funciones/), "Interfaces con React");
     await user.click(screen.getByRole("button", { name: "Guardar experiencia" }));
 
     expect(workExperienceService.createWorkExperience).toHaveBeenCalledWith(

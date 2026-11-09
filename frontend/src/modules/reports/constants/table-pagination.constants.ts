@@ -1,0 +1,1 @@
+export const NAV_BUTTON_CLASSES = `size-9 rounded-md border-border bg-surface text-sm font-semibold text-ink-soft hover:bg-surface-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40`;

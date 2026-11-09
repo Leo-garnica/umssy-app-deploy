@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { ConfirmDeleteDialog } from "@/modules/profile";
-import { FeedbackMessage } from "@/modules/profile";
+import { useMemo, useState } from "react";
+import {
+  ConfirmDeleteDialog,
+  FeedbackMessage,
+  useProfileSkillsRadar,
+} from "@/modules/profile";
+import type { DetectedSkill } from "@/modules/matching";
 import { RecordEditorDialog } from "@/shared/components/layout/record-editor-dialog";
-import { WorkExperienceForm } from "../components/work-experience-form";
-import { WorkExperienceListCard } from "../components/work-experience-list-card";
+import { WorkExperienceForm } from "./work-experience-form";
+import { WorkExperienceListCard } from "./work-experience-list-card";
 import { useDeleteWorkExperience } from "../hooks/use-delete-work-experience";
 import { useSaveWorkExperience } from "../hooks/use-save-work-experience";
 import { useWorkExperiences } from "../hooks/use-work-experiences";
@@ -17,8 +21,12 @@ import { toWorkExperiencePayload } from "../utils/to-work-experience-payload";
 
 export function WorkExperienceProfileSection() {
   const { experiences, isLoading, error, reload } = useWorkExperiences();
-  const [editingExperience, setEditingExperience] = useState<WorkExperienceItem | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<WorkExperienceItem | null>(null);
+  const { data: radar } = useProfileSkillsRadar();
+
+  const [editingExperience, setEditingExperience] =
+    useState<WorkExperienceItem | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    useState<WorkExperienceItem | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
@@ -39,18 +47,63 @@ export function WorkExperienceProfileSection() {
     if (editingExperience?.id === deleted.id) {
       resetForm();
     }
+
     void reload();
   });
+
+  const detectedSkillsByExperience = useMemo(() => {
+    const result: Record<string, DetectedSkill[]> = {};
+
+    for (const skill of radar?.skills ?? []) {
+      if (!Array.isArray(skill.evidenceRefs)) {
+        continue;
+      }
+
+      for (const ref of skill.evidenceRefs) {
+        if (ref.type !== "work-experience" || !ref.id) {
+          continue;
+        }
+
+        const current = result[ref.id] ?? [];
+
+        if (!current.some((item) =>
+          item.id === skill.id || item.name.toLowerCase() === skill.name.toLowerCase(),
+        )) {
+          result[ref.id] = [
+            ...current,
+            {
+              id: skill.id,
+              name: skill.name,
+            },
+          ];
+        }
+      }
+    }
+
+    return result;
+  }, [radar]);
+
+  const skillsByExperience = useMemo(() =>
+    Object.fromEntries(
+      Object.entries(detectedSkillsByExperience).map(([id, skills]) => [
+        id,
+        skills.map((skill) => skill.name),
+      ]),
+    ),
+  [detectedSkillsByExperience]);
 
   const isBusy = saveMutation.isSaving || deleteMutation.isDeleting;
 
   const listFeedback: Feedback | null =
-    deleteMutation.feedback ?? (!isFormOpen ? saveMutation.feedback : null) ?? (error ? { type: "error", message: error } : null);
+    deleteMutation.feedback ??
+    (!isFormOpen ? saveMutation.feedback : null) ??
+    (error ? { type: "error", message: error } : null);
 
   const handleEdit = (experience: WorkExperienceItem) => {
     if (isBusy) {
       return;
     }
+
     saveMutation.clearFeedback();
     deleteMutation.clearFeedback();
     setEditingExperience(experience);
@@ -59,7 +112,10 @@ export function WorkExperienceProfileSection() {
   };
 
   const handleCreate = () => {
-    if (isBusy) return;
+    if (isBusy) {
+      return;
+    }
+
     saveMutation.clearFeedback();
     deleteMutation.clearFeedback();
     setEditingExperience(null);
@@ -72,6 +128,7 @@ export function WorkExperienceProfileSection() {
     if (isBusy) {
       return;
     }
+
     saveMutation.clearFeedback();
     deleteMutation.clearFeedback();
     setPendingDelete(experience);
@@ -81,6 +138,7 @@ export function WorkExperienceProfileSection() {
     if (pendingDelete) {
       await deleteMutation.deleteWorkExperience(pendingDelete);
     }
+
     setPendingDelete(null);
   };
 
@@ -88,46 +146,72 @@ export function WorkExperienceProfileSection() {
     if (deleteMutation.isDeleting) {
       return;
     }
+
     deleteMutation.clearFeedback();
-    await saveMutation.save(toWorkExperiencePayload(values), editingExperience?.id);
+
+    await saveMutation.save(
+      toWorkExperiencePayload(values),
+      editingExperience?.id,
+    );
   };
 
   return (
-    <section id="experience" className="scroll-mt-24 space-y-4" aria-label="Experiencia laboral">
+    <section
+      id="experience"
+      className="scroll-mt-24 space-y-4"
+      aria-label="Experiencia laboral"
+    >
       <FeedbackMessage feedback={listFeedback} />
 
-        <WorkExperienceListCard
-          onAdd={handleCreate}
-          experiences={experiences}
-          isLoading={isLoading}
-          isBusy={isBusy}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+      <WorkExperienceListCard
+        onAdd={handleCreate}
+        experiences={experiences}
+        isLoading={isLoading}
+        isBusy={isBusy}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        skillsByExperience={skillsByExperience}
+      />
+
       {isFormOpen ? (
         <RecordEditorDialog
           key={formVersion}
-          title={editingExperience ? "Editar experiencia" : "Agregar experiencia"}
+          title={
+            editingExperience ? "Editar experiencia" : "Agregar experiencia"
+          }
           description="Completa los datos y guarda para actualizar tu perfil."
           isBusy={saveMutation.isSaving}
           hasUnsavedChanges={hasChanges}
           onClose={resetForm}
         >
           {(requestClose) => (
-        <WorkExperienceForm
-          key={editingExperience ? editingExperience.id : `new-${formVersion}`}
-          initialValues={
-            editingExperience ? toWorkExperienceFormValues(editingExperience) : undefined
-          }
-          isPending={saveMutation.isSaving}
-          feedback={saveMutation.feedback}
-          onValuesChange={() => setHasChanges(true)}
-          onSubmit={handleSubmit}
-          onCancel={requestClose}
-        />
+            <WorkExperienceForm
+              key={
+                editingExperience
+                  ? editingExperience.id
+                  : `new-${formVersion}`
+              }
+              initialValues={
+                editingExperience
+                  ? toWorkExperienceFormValues(editingExperience)
+                  : undefined
+              }
+              experienceId={editingExperience?.id}
+              initialDetectedSkills={
+                editingExperience
+                  ? detectedSkillsByExperience[editingExperience.id] ?? []
+                  : []
+              }
+              isPending={saveMutation.isSaving}
+              feedback={saveMutation.feedback}
+              onValuesChange={() => setHasChanges(true)}
+              onSubmit={handleSubmit}
+              onCancel={requestClose}
+            />
           )}
         </RecordEditorDialog>
       ) : null}
+
       <ConfirmDeleteDialog
         isOpen={pendingDelete !== null}
         title="Eliminar experiencia"

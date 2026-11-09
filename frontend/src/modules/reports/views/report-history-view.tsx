@@ -1,0 +1,66 @@
+"use client";
+
+import { useState } from "react";
+import { WorkspacePage } from "@/shared/components/layout/workspace-page";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+
+import { REPORT_HISTORY_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "../constants/reports.constants";
+import { ReportHistoryTable } from "../components/report-history-table";
+import { ReportSearchInput } from "../components/report-search-input";
+import { ReportTableFooter } from "../components/report-table-footer";
+import { ReportTypeFilter } from "../components/report-type-filter";
+import { useReportHistory } from "../hooks/use-report-history";
+import type { ReportType } from "../types/generated-report.types";
+
+export function ReportHistoryView() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [reportType, setReportType] = useState<ReportType | undefined>(undefined);
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput.trim(), SEARCH_DEBOUNCE_MS);
+  const { reports, totalItems, totalPages, isLoading, errorMessage, refresh } = useReportHistory(
+    currentPage,
+    reportType,
+    search,
+  );
+
+  const handleReportTypeChange = (selectedReportType?: ReportType) => {
+    setReportType(selectedReportType);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    if (value.trim() !== searchInput.trim()) {
+      setCurrentPage(1);
+    }
+    setSearchInput(value);
+  };
+
+  return (
+    <WorkspacePage title="Historial de reportes" description="Revisa los reportes generados y filtra por tipo de exportación.">
+
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 min-[560px]:flex-row min-[560px]:items-center">
+        <ReportTypeFilter value={reportType} onChange={handleReportTypeChange} />
+        <ReportSearchInput value={searchInput} onChange={handleSearchChange} label={"Buscar por nombre del archivo"} />
+      </div>
+
+      <ReportHistoryTable
+        reports={reports}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        emptyMessage={reportType ? "No hay reportes generados de este tipo." : undefined}
+        searchTerm={search}
+      />
+
+      <ReportTableFooter
+        currentPage={currentPage}
+        pageSize={REPORT_HISTORY_PAGE_SIZE}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        isLoading={isLoading}
+        itemLabel="reportes"
+        onPageChange={setCurrentPage}
+        onRefresh={refresh}
+      />
+    </WorkspacePage>
+  );
+}

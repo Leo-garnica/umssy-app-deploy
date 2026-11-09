@@ -1,0 +1,103 @@
+import { describe, it, expect } from 'vitest';
+import {
+  formatConversationDate,
+  formatEventRoomCreatedAt,
+  formatEventRoomTime,
+  formatMessageDateSeparator,
+  formatTime12h,
+  getInitials,
+} from '../utils/date-formatter';
+
+describe('date-formatter', () => {
+  it('debe devolver string vacio si la fecha es nula, indefinida o invalida', () => {
+    expect(formatConversationDate(null)).toBe('');
+    expect(formatConversationDate(undefined)).toBe('');
+    expect(formatConversationDate('fecha-invalida')).toBe('');
+  });
+
+  it('debe formatear la hora si la fecha es de hoy', () => {
+    const today = new Date().toISOString();
+    const result = formatConversationDate(today);
+    expect(result).toMatch(/^\d{2}:\d{2} (AM|PM)$/);
+  });
+ it('formatTime12h usa hh:mm AM/PM para cualquier hora', () => {
+    for (let hour = 0; hour < 24; hour++) {
+      const date = new Date();
+      date.setHours(hour, 5, 0, 0);
+      const expectedHour = String(hour % 12 || 12).padStart(2, '0');
+      const expectedPeriod = hour >= 12 ? 'PM' : 'AM';
+      expect(formatTime12h(date)).toBe(`${expectedHour}:05 ${expectedPeriod}`);
+    }
+  });
+  it('debe devolver "Ayer" si la fecha es del dia anterior', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    expect(formatConversationDate(yesterday.toISOString())).toBe('Ayer');
+  });
+
+
+     it('debe devolver fecha corta si es anterior a ayer', () => {
+       for (const daysAgo of [2, 10, 400]) {
+         const olderDate = new Date();
+         olderDate.setDate(olderDate.getDate() - daysAgo);
+         const dd = String(olderDate.getDate()).padStart(2, '0');
+         const mm = String(olderDate.getMonth() + 1).padStart(2, '0');
+         const aa = String(olderDate.getFullYear() % 100).padStart(2, '0');
+         expect(formatConversationDate(olderDate.toISOString())).toBe(`${dd}/${mm}/${aa}`);
+       }
+     });
+  
+
+  it('debe obtener las iniciales correctamente', () => {
+    expect(getInitials('')).toBe('U');
+    expect(getInitials('Maria')).toBe('MA');
+    expect(getInitials('Maria Fernandez')).toBe('MF');
+    expect(getInitials('Carlos Alberto Torrico')).toBe('CT');
+  });
+
+  it('debe devolver HOY para la fecha actual en formatMessageDateSeparator', () => {
+    const today = new Date().toISOString();
+    expect(formatMessageDateSeparator(today)).toBe('HOY');
+  });
+
+  it('debe devolver AYER para la fecha de ayer en formatMessageDateSeparator', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    expect(formatMessageDateSeparator(yesterday.toISOString())).toBe('AYER');
+  });
+
+  it('debe devolver fecha completa en mayusculas para fechas anteriores a ayer en formatMessageDateSeparator', () => {
+    const oldDate = new Date('2025-05-15T12:00:00.000Z');
+    const result = formatMessageDateSeparator(oldDate.toISOString());
+    expect(result).toContain('2025');
+    expect(result).toBe(result.toUpperCase());
+  });
+
+  it('debe devolver vacio ante fecha invalida en formatMessageDateSeparator', () => {
+    expect(formatMessageDateSeparator(null)).toBe('');
+    expect(formatMessageDateSeparator(undefined)).toBe('');
+    expect(formatMessageDateSeparator('fecha-invalida')).toBe('');
+  });
+
+  it('debe formatear la fecha de creacion como dd/mm/aa en zona horaria de Bolivia', () => {
+    const resultado = formatEventRoomCreatedAt('2026-11-01T10:00:00.000Z');
+    expect(resultado).toMatch(/^\d{2}\/\d{2}\/\d{2}$/);
+  });
+
+  it('debe devolver vacio ante fecha invalida en formatEventRoomCreatedAt', () => {
+    expect(formatEventRoomCreatedAt(null)).toBe('');
+    expect(formatEventRoomCreatedAt(undefined)).toBe('');
+    expect(formatEventRoomCreatedAt('fecha-invalida')).toBe('');
+  });
+
+  it('debe formatear la hora del mensaje en zona horaria de Bolivia', () => {
+    const resultado = formatEventRoomTime('2026-11-01T10:00:00.000Z');
+    expect(resultado).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it('debe devolver vacio ante fecha invalida en formatEventRoomTime', () => {
+    expect(formatEventRoomTime(null)).toBe('');
+    expect(formatEventRoomTime(undefined)).toBe('');
+    expect(formatEventRoomTime('fecha-invalida')).toBe('');
+  });
+});

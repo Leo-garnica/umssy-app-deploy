@@ -20,7 +20,7 @@ describe("View role access", () => {
   });
 
   it("denies unclassified routes and similar prefixes", () => {
-    for (const route of ["/unknown", "/backofficex", "/recruitersx", "/eventsx", "/login", "/area-detail-preview", "/area-detail-interaction-preview", "/mentorship/mentors", "/backoffice/solicitudes"]) {
+    for (const route of ["/unknown", "/backofficex", "/recruitersx", "/eventsx", "/login"]) {
       expect(getRouteRoles(route)).toEqual([]);
     }
   });
@@ -28,7 +28,12 @@ describe("View role access", () => {
   it.each([
     ["/vacancies/example-id", "/vacancies"],
     ["/profile/trajectory/education", "/profile"],
+    ["/mentors/example-id", "/mentorship/mentors"],
+    ["/mentors/example-id/availability", "/mentorship/mentors"],
     ["/recruiters/job-offers/new", "/recruiters"],
+    ["/backoffice/solicitudes/example-id", "/backoffice/solicitudes"],
+    ["/area-detail-preview", "/matching"],
+    ["/area-detail-interaction-preview", "/matching"],
   ])("keeps %s within the permissions of its parent flow", (route, parent) => {
     expect(getRouteRoles(route)).toEqual(getRouteRoles(parent));
   });

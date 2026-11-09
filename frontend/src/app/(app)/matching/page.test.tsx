@@ -1,85 +1,32 @@
-import { type ReactNode } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { radarIntegrationApi, type CandidateRow, type Scores } from "@/modules/radar-chart/sprint2-integration/radar-integration-api";
-import { EMPTY_AREA_EVIDENCE, type AreaEvidenceDetails } from "@/modules/radar-chart/sprint2/radar-area-details-dialog";
+import { cleanup, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderWithQuery } from "@/shared/testing/render-with-query";
+import { useAuth } from "@/shared/contexts/auth-context";
+import { jobOffersService } from "@/modules/job-offers";
+import { getCompanyApplicants } from "@/modules/matching/services/matching.service";
 import MatchingPage from "./page";
 
-vi.mock("@/modules/radar-chart/sprint2-integration/radar-integration-api", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/modules/radar-chart/sprint2-integration/radar-integration-api")>();
-  return { ...actual, radarIntegrationApi: { recruiterVacancies: vi.fn(), applicants: vi.fn(), applicantAreaEvidence: vi.fn() } };
-});
-vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  RadarChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Tooltip: () => null, Text: ({children}:{children:ReactNode}) => <text>{children}</text>,
-  PolarGrid: () => null, PolarAngleAxis: () => null, PolarRadiusAxis: () => null,
-  Radar: ({ dot }: { dot?: boolean | ((props: { cx: number; cy: number; index: number }) => ReactNode) }) => typeof dot === "function" ? <svg>{dot({ cx: 20, cy: 20, index: 3 })}</svg> : null,
-}));
-const scores: Scores = { desarrollo: 0, "cloud-devops": 0, "data-ai": 0, qa: 1, ciberseguridad: 0, "gobernanza-ti": 0 };
-const vacancies = [{ id: "job-1", title: "Vacante QA", companyId: "company" }, { id: "job-2", title: "Segunda vacante", companyId: "company" }];
-const candidate: CandidateRow = { applicationId: "application-a", userId: "person-a", name: "Persona Alfa", headline: "Perfil Alfa", email: null, phone: null, appliedAt: "2026-10-26T12:00:00Z", state: "applied", canViewCv: false, version: 1, scores, evidence: {}, comparison: { match: 80, gaps: scores }, skills: ["Python"] };
-const beta: CandidateRow = { ...candidate, applicationId: "application-b", userId: "person-b", name: "Persona Beta", headline: "Perfil Beta" };
-const evidence: AreaEvidenceDetails = { ...EMPTY_AREA_EVIDENCE, tags: ["Evidencia de Alfa"] };
-beforeEach(() => {
-  vi.mocked(radarIntegrationApi.recruiterVacancies).mockResolvedValue(vacancies);
-  vi.mocked(radarIntegrationApi.applicants).mockImplementation(async id => ({ vacancy: { id, title: vacancies.find(v => v.id === id)!.title, target: scores }, applicants: [candidate, beta] }));
-  vi.mocked(radarIntegrationApi.applicantAreaEvidence).mockResolvedValue(evidence);
-});
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+vi.mock("@/shared/contexts/auth-context", () => ({ useAuth: vi.fn() }));
+vi.mock("@/modules/job-offers", () => ({ jobOffersService: { getByCompany: vi.fn() } }));
+vi.mock("@/modules/matching/services/matching.service", () => ({ getCompanyApplicants: vi.fn() }));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-describe("MatchingPage with authorized API data", () => {
-  it("loads the candidates for the company's selected vacancy", async () => {
-    render(<MatchingPage />);
-    expect(screen.getByRole("heading", { name: "Buscar candidatos" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Persona Alfa" })).toBeInTheDocument();
-    expect(radarIntegrationApi.applicants).toHaveBeenCalledWith("job-1");
-    expect(screen.getByText("Contacto no compartido", { exact: false })).toBeInTheDocument();
+describe("MatchingPage", () => {
+  it("loads the real company vacancy and its applicants", async () => {
+    vi.mocked(useAuth).mockReturnValue({ currentUserId: "user-1", roles: ["empresa"], company: { id: "company-1", name: "Empresa real" }, isLoading: false, refreshRoles: vi.fn() });
+    vi.mocked(jobOffersService.getByCompany).mockResolvedValue([{ id: "offer-1", title: "Vacante real" }] as Awaited<ReturnType<typeof jobOffersService.getByCompany>>);
+    vi.mocked(getCompanyApplicants).mockResolvedValue({ jobOfferId: "offer-1", jobTitle: "Vacante real", total: 1, applicants: [{ id: "application-1", userId: "applicant-1", fullName: "Ana Pérez", email: "ana@example.com", headline: "Ingeniera", appliedAt: "2026-11-08T12:00:00Z", status: "En revisión" }] });
+    renderWithQuery(<MatchingPage />);
+    expect(await screen.findByRole("heading", { name: "Ana Pérez" })).toBeInTheDocument();
+    expect(jobOffersService.getByCompany).toHaveBeenCalledWith("company-1");
+    expect(getCompanyApplicants).toHaveBeenCalledWith("company-1", "offer-1", expect.any(AbortSignal));
+    expect(screen.queryByText("Tech Lead")).not.toBeInTheDocument();
   });
-
-  it("clears evidence when filtering changes the effective candidate, including on API failure", async () => {
-    render(<MatchingPage />);
-    await screen.findByRole("heading", { name: "Persona Alfa" });
-    const search = screen.getByRole("searchbox", { name: "Buscar candidato" });
-    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
-    expect(await screen.findByText("Evidencia de Alfa")).toBeInTheDocument();
-    fireEvent.change(search, { target: { value: "Beta" } });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByText("Evidencia de Alfa")).not.toBeInTheDocument();
-    vi.mocked(radarIntegrationApi.applicantAreaEvidence).mockRejectedValueOnce(new Error("unavailable"));
-    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
-    await screen.findByRole("alert");
-    expect(radarIntegrationApi.applicantAreaEvidence).toHaveBeenLastCalledWith("application-b", "qa");
-    expect(screen.queryByText("Evidencia de Alfa")).not.toBeInTheDocument();
-  });
-
-  it("ignores late evidence from the previous candidate", async () => {
-    let release!: (value: AreaEvidenceDetails) => void;
-    vi.mocked(radarIntegrationApi.applicantAreaEvidence).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
-    render(<MatchingPage />);
-    await screen.findByRole("heading", { name: "Persona Alfa" });
-    const betaButton = screen.getByRole("button", { name: /Persona Beta/ });
-    fireEvent.click(screen.getByRole("button", { name: /^Ver evidencias de QA/ }));
-    await waitFor(() => expect(radarIntegrationApi.applicantAreaEvidence).toHaveBeenCalled());
-    fireEvent.click(betaButton);
-    await act(async () => { release(evidence); });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByText("Evidencia de Alfa")).not.toBeInTheDocument();
-  });
-
-  it("requests the newly selected vacancy", async () => {
-    render(<MatchingPage />);
-    await screen.findByRole("heading", { name: "Persona Alfa" });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "job-2" } });
-    await waitFor(() => expect(radarIntegrationApi.applicants).toHaveBeenLastCalledWith("job-2"));
-    expect(await screen.findByRole("heading", { name: "Postulantes · Segunda vacante" })).toBeInTheDocument();
-  });
-
-  it("does not fabricate candidates when a search has no results", async () => {
-    render(<MatchingPage />);
-    await screen.findByRole("heading", { name: "Persona Alfa" });
-    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar candidato" }), { target: { value: "missing" } });
-    expect(screen.getByText(/No se encontraron candidatos para/)).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Persona Alfa" })).not.toBeInTheDocument();
+  it("does not request another company when the session has no relationship", () => {
+    vi.mocked(useAuth).mockReturnValue({ currentUserId: "user-1", roles: ["empresa"], company: null, isLoading: false, refreshRoles: vi.fn() });
+    renderWithQuery(<MatchingPage />);
+    expect(screen.getByText("No tienes una empresa asignada para consultar postulaciones.")).toBeInTheDocument();
+    expect(jobOffersService.getByCompany).not.toHaveBeenCalled();
+    expect(getCompanyApplicants).not.toHaveBeenCalled();
   });
 });

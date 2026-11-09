@@ -7,7 +7,7 @@ import { WORKSPACE_AREAS } from "@/shared/config/workspace-navigation.config";
 import { getWorkspaceTasks } from "@/shared/utils/get-workspace-tasks";
 import { getRouteRoles } from "@/shared/utils/get-route-roles";
 import { getRolesLabel } from "@/modules/auth";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { PageHeading } from "@/shared/components/layout";
 import { cn } from "cn";
 
@@ -26,7 +26,7 @@ export function DashboardView() {
         actions={<div className="flex flex-col items-end gap-4"><span className="text-xs text-text-secondary">{getRolesLabel(roles)}</span>{canExploreMentors ? <Link href="/mentorship/mentors" className={buttonVariants()}>Ver mentores<ArrowRight aria-hidden="true" /></Link> : null}</div>}
       />
       {isLoading ? <p role="status" className="text-sm text-text-secondary">Cargando tus espacios…</p> : (
-        <section aria-label="Tus espacios" className={cn("grid items-start gap-8", areas.length > 2 ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : areas.length === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
+        <section aria-label="Tus espacios" className={cn("grid items-start gap-8", areas.length > 2 ? "grid-cols-3" : areas.length === 2 ? "grid-cols-2" : "grid-cols-1")}>
           {areas.map((area) => (
             <section key={area.id} aria-labelledby={`area-${area.id}`} className="min-w-0">
               <h2 id={`area-${area.id}`} className="mb-5 flex items-center gap-3 text-lg font-bold text-ink"><area.icon className="size-7 text-accent" strokeWidth={1.5} aria-hidden="true" />{area.label}</h2>

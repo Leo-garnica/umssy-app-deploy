@@ -15,7 +15,7 @@ vi.mock("@/shared/contexts/auth-context", () => ({
 }));
 
 const authState = (roles: string[], isLoading = false) =>
-  ({ roles, isLoading, refreshRoles: async () => {} }) as AuthContextValue;
+  ({ currentUserId: null, roles, isLoading, refreshRoles: async () => {} }) as AuthContextValue;
 
 describe("useRedirectAuthenticated", () => {
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe("useRedirectAuthenticated", () => {
   });
 
   it.each([
-    [["administrativo"], "/affinity-radar/review-queue"],
+    [["administrativo"], "/backoffice/solicitudes"],
     [["empresa"], "/recruiters"],
     [["titulado"], "/dashboard"],
   ])("sends %j to %s", (roles, path) => {
@@ -53,14 +53,14 @@ describe("useRedirectAuthenticated", () => {
   });
 
   it("honours a safe next path the role can open", () => {
-    window.history.replaceState({}, "", "/login?next=/affinity-radar/review-queue");
+    window.history.replaceState({}, "", "/login?next=/backoffice/solicitudes");
     vi.mocked(useAuth).mockReturnValue(authState(["administrativo"]));
     renderHook(() => useRedirectAuthenticated());
-    expect(replace).toHaveBeenCalledWith("/affinity-radar/review-queue");
+    expect(replace).toHaveBeenCalledWith("/backoffice/solicitudes");
   });
 
   it("ignores a next path the role cannot open", () => {
-    window.history.replaceState({}, "", "/login?next=/affinity-radar/review-queue");
+    window.history.replaceState({}, "", "/login?next=/backoffice/solicitudes");
     vi.mocked(useAuth).mockReturnValue(authState(["titulado"]));
     renderHook(() => useRedirectAuthenticated());
     expect(replace).toHaveBeenCalledWith("/dashboard");

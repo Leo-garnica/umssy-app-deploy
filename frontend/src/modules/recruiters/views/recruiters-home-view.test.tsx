@@ -1,5 +1,5 @@
-import { renderWithQuery as render } from "@/shared/testing/render-with-query";
 import { cleanup, screen } from "@testing-library/react";
+import { renderWithQuery as render } from "@/shared/testing/render-with-query";
 import { afterEach, describe, expect, it } from "vitest";
 import { RecruitersHomeView } from "./recruiters-home-view";
 

@@ -21,33 +21,75 @@ cp .env.example .env
 
 ## Compile and Run the Project
 
-1. **Start the required services using Docker:**
-To spin up all services—including the NestJS API and PostgreSQL database (API runs in **development mode** by default) and runs migrations too:
+### Run the API and Database with Docker
+
+Run these commands after preparing `.env` as described above.
+To start both services:
+
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
+The API container runs with `NODE_ENV=production`. Its startup command applies
+existing migrations with `prisma migrate deploy`, then runs the compiled API
+with `node dist/main.js`. Compose does not mount the API source code or enable
+watch mode. After changing API code, rebuild the image with
+`docker compose up -d --build api`.
 
-If you only need to run the PostgreSQL database (you need to run migrations after), run:
-```bash
-docker compose up postgres -d
-```
+### Run the API Locally in Development Mode
 
-2. **Start the application in development mode:**
-Run the server in **watch mode** to enable auto-reloading whenever code changes are saved:
+Start only PostgreSQL, apply the migrations and generate Prisma Client, then run
+NestJS locally in **watch mode**:
+
 ```bash
+docker compose up -d postgres
+pnpm migrate:apply
 pnpm run start:dev
 ```
 
-you can visit the Swagger documentation in:
+Use this option for automatic reloading when source files change. Keep the API
+container stopped to avoid a port conflict; if you previously started all
+services, run `docker compose stop api` before starting the local API.
+For this setup, use `DB_HOST=localhost` and the published `DB_PORT` from `.env`.
+
+You can visit the Swagger documentation at:
+
 ```
 http://localhost:8080/docs
 ```
 
-and the server runs in:
+The API is available at:
+
 ```
 http://localhost:8080/api
 ```
+
+## Local OCR
+
+Tesseract.js supports English and Spanish with two models: `default`
+(integerized `4.0.0_best_int`) and `4.0.0_best` (larger, full precision).
+
+From `backend`, prepare the models and check initialization or recognition:
+
+```bash
+pnpm ocr:models
+pnpm ocr:smoke
+pnpm ocr:smoke /absolute/path/to/image.png
+```
+
+Model preparation requires internet access.
+
+PaddleOCR is available. It requires local ONNX detection/recognition
+models, a matching dictionary and preset.
+
+## Email configuration
+
+See [.env.example](.env.example) for SMTP credentials, sender and optional logo settings.
+
+- Local: `MAIL_TRANSPORT=console`, or `smtp` with Mailpit/MailHog.
+- Production (Brevo): `MAIL_TRANSPORT=smtp`, a verified sender and an SMTP key
+  (not an API key). For port 587, use `SMTP_SECURE=false` and `SMTP_REQUIRE_TLS=true`.
+- Fonts, colors and branding: `src/modules/mail/mjml/layout.mjml` and `header.mjml`.
 
 ## Database Migrations
 
@@ -97,6 +139,51 @@ Then create a `.env.test` file by copying `.env.test.example`. Use the same cred
 ```bash
    pnpm migrate:test:apply
 ```
+
+## Authentication
+
+Login is provisional and works by role. The user sends email, password,
+and the role they want to log in as (`roleTag`). The backend validates
+the password and confirms the user has that role assigned before
+returning a token.
+
+Required environment variables in `.env`:
+
+- `JWT_SECRET` — secret used to sign tokens. You can generate with `openssl rand -base64 32` and paste in `JWT_SECRET` in `.env`.
+
+## Seeds
+
+### Production
+
+```bash
+pnpm run seed:production
+# Equivalent command, usable in any environment:
+pnpm run seed:catalogs
+```
+
+Loads only required catalogs in a transaction. Creates no users or demo records.
+
+To explicitly initialize an administrator:
+
+```bash
+pnpm run seed:admin --email admin@example.com
+```
+
+Loads required catalogs and creates one account with the `administrativo` role. The generated password is stored with bcrypt and printed only after the transaction commits; save it immediately. Reruns with the same email preserve the password. Existing non-admin accounts are never promoted, and a different email cannot create a second administrator.
+
+The previous `seed:production --email ...` command is now `seed:admin --email ...`.
+
+### Development
+
+```bash
+pnpm run seed
+pnpm run seed:run
+```
+Test password: `Prueba123`. Development commands refuse to run when `NODE_ENV=production`.
+
+Repeated demo data is generated from shared user, availability, appointment and chat plans. Stable record keys preserve existing relationships and reruns use `skipDuplicates`. Catalog values and special scenarios remain explicit.
+
+`SEED_TRANSACTION_TIMEOUT_MS` controls the transaction timeout (default: `120000`; range: `1–600000` ms). Seed commands do not apply migrations.
 
    ## Resources
 - [NestJS Documentation](https://docs.nestjs.com?utm_source=gemini) — Learn more about the framework.

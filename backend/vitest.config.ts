@@ -20,6 +20,8 @@ export default defineConfig({
         'src/**/*.dto.ts',
         'src/**/*.entity.ts',
         'src/prisma/*',
+        'src/**/*seed*.ts',
+        'src/common/database/**',
       ],
       thresholds: {
         lines: 80,

@@ -1,5 +1,6 @@
 # compiled output
 /dist
+/dist-seed
 /node_modules
 /build
 
@@ -62,3 +63,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /generated/prisma
 
 /generated/prisma
+
+/ocr-models/

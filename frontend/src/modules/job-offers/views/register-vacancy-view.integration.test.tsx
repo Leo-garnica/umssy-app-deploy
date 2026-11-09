@@ -1,5 +1,8 @@
+import "@/shared/testing/indexed-db.mock";
+import "@/modules/job-offers/testing/current-company.mock";
 import { AxiosError, type AxiosResponse } from "axios";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/shared/services/api-client";
 import { clearAccessToken, saveAccessToken } from "@/shared/services/storage/access-token-storage";
@@ -9,16 +12,40 @@ import { RegisterVacancyView } from "./register-vacancy-view";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/shared/services/api-client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/services/api-client")>()), apiClient: { get: vi.fn(), post: vi.fn() } }));
+  ...(await importOriginal<typeof import("@/shared/services/api-client")>()), apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 vi.mock("@/components/ui/select", () => ({
-  Select: ({ children, onValueChange }: { children: React.ReactNode; onValueChange?: (value: string) => void }) => (
-    <div data-testid="select" onClick={() => onValueChange?.("Tiempo completo")}>{children}</div>
+  Select: ({
+    children,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    onValueChange?: (value: string) => void;
+  }) => (
+    <div
+      data-testid="select"
+      onClick={() => onValueChange?.("Tiempo completo")}
+    >
+      {children}
+    </div>
   ),
-  SelectTrigger: ({ children, id }: { children: React.ReactNode; id?: string }) => <div id={id}>{children}</div>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({
+    children,
+    id,
+  }: {
+    children: React.ReactNode;
+    id?: string;
+  }) => <div id={id}>{children}</div>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => (
+    <span>{placeholder}</span>
+  ),
+  SelectContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SelectItem: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 const EXPECTED_PAYLOAD = {
@@ -36,8 +63,6 @@ const EXPECTED_PAYLOAD = {
 };
 
 const CREATED = { data: { statusCode: 201, ok: true, detail: "", data: { id: "offer-1", createdAt: "2026-10-12T00:00:00.000Z" } } };
-const COMPANIES = { data: { statusCode: 200, ok: true, detail: "", data: [{ id: COMPANY_ID, name: "Empresa QA vinculada" }] } };
-const SKILLS = { data: { statusCode: 200, ok: true, detail: "", data: [PYTHON, DOCKER, KUBERNETES] } };
 
 const byId = (id: string) => document.getElementById(id) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(byId(id), { target: { value } });
@@ -78,12 +103,14 @@ async function goToPreview() {
 }
 
 describe("Registrar vacante: wizard completo conectado al backend", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     Element.prototype.scrollIntoView = vi.fn();
     window.history.pushState({}, "", "/vacancies/register");
-    saveAccessToken(buildSessionToken("empresa"));
-    vi.mocked(apiClient.get).mockReset().mockImplementation(async (url) => url === "/radar-integration/recruiter/companies" ? COMPANIES : SKILLS);
-    vi.mocked(apiClient.post).mockReset();
+    vi.stubEnv("NEXT_PUBLIC_DEMO_COMPANY_ID", COMPANY_ID);
+    await saveAccessToken(buildSessionToken("empresa"));
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { statusCode: 200, ok: true, detail: "", data: [PYTHON, DOCKER, KUBERNETES] },
+    });
   });
 
   afterEach(() => {
@@ -99,16 +126,17 @@ describe("Registrar vacante: wizard completo conectado al backend", () => {
     renderWithQuery(<RegisterVacancyView />);
 
     await goToPreview();
-    expect(screen.getByText("Empresa QA vinculada", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Bs 6.500 - 8.000")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Habilidades requeridas" })).toHaveTextContent("DockerKubernetes");
     click("Confirmar publicación");
 
     expect(await screen.findByText("Vacante publicada")).toBeInTheDocument();
     expect(apiClient.get).toHaveBeenCalledWith("/job-offers/skills");
-    expect(apiClient.get).toHaveBeenCalledWith("/radar-integration/recruiter/companies");
     expect(apiClient.post).toHaveBeenCalledTimes(1);
-    expect(apiClient.post).toHaveBeenCalledWith(`/companies/${COMPANY_ID}/job-offers`, EXPECTED_PAYLOAD);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/companies/${COMPANY_ID}/job-offers`,
+      EXPECTED_PAYLOAD,
+    );
 
     click("Publicar otra vacante");
     await waitFor(() => expect(byId("title")).toBeInTheDocument());
@@ -172,29 +200,14 @@ describe("Registrar vacante: wizard completo conectado al backend", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo completar la publicación. Inténtalo más tarde.");
   });
 
-  it("no publica si la cuenta no tiene una empresa vinculada", async () => {
-    vi.mocked(apiClient.get).mockImplementation(async (url) => url === "/radar-integration/recruiter/companies" ? { data: { ...COMPANIES.data, data: [] } } : SKILLS);
+  it("no llama al backend si la sesión no es de empresa", async () => {
+    await saveAccessToken(buildSessionToken("titulado"));
     renderWithQuery(<RegisterVacancyView />);
-    fillInformation();
-    await fillRequirements();
-    await screen.findByText(/No hay una empresa vinculada a tu cuenta/);
-    expect(screen.queryByRole("button", { name: "Confirmar publicación" })).not.toBeInTheDocument();
-    expect(apiClient.post).not.toHaveBeenCalled();
-  });
+    await goToPreview();
 
-  it("recupera la consulta de empresas sin perder el borrador escrito", async () => {
-    let firstRequest = true;
-    vi.mocked(apiClient.get).mockImplementation(async (url) => {
-      if (url !== "/radar-integration/recruiter/companies") return SKILLS;
-      if (firstRequest) { firstRequest = false; throw new Error("Network Error"); }
-      return COMPANIES;
-    });
-    renderWithQuery(<RegisterVacancyView />);
-    type("title", "Borrador de QA");
-    await screen.findByText(/No se pudieron consultar tus empresas/);
-    click("Reintentar empresas");
-    await screen.findByText(/Empresa de la publicación: Empresa QA vinculada/);
-    expect(byId("title").value).toBe("Borrador de QA");
+    click("Confirmar publicación");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No hay una empresa asociada");
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
@@ -242,5 +255,62 @@ describe("Registrar vacante: wizard completo conectado al backend", () => {
     click("Salir");
 
     expect(push).toHaveBeenCalledWith("/profile");
+  });
+
+  it("edita una vacante existente: carga sus datos, guarda con PUT, avisa y vuelve al listado", async () => {
+    const OFFER = {
+      ...EXPECTED_PAYLOAD,
+      id: "offer-1",
+      salaryRange: "Bs 6.500 - 8.000",
+      status: "Publicada",
+      expiresAt: null,
+      publishedAt: "2026-10-12T00:00:00.000Z",
+      createdAt: "2026-10-12T00:00:00.000Z",
+      company: { id: COMPANY_ID, name: "TechBolivia" },
+      skills: [DOCKER, KUBERNETES],
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => ({
+      data: {
+        statusCode: 200,
+        ok: true,
+        detail: "",
+        data: url === "/job-offers/skills" ? [PYTHON, DOCKER, KUBERNETES] : OFFER,
+      },
+    }));
+    vi.mocked(apiClient.put).mockResolvedValue({ data: { statusCode: 200, ok: true, detail: "", data: OFFER } });
+    renderWithQuery(<RegisterVacancyView jobOfferId="offer-1" />);
+
+    await screen.findByText("Editar vacante");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/companies/${COMPANY_ID}/job-offers/offer-1`,
+    );
+    expect(byId("title").value).toBe("DevOps Senior");
+    click("Continuar");
+    await screen.findByRole("button", { name: "Docker" });
+    click("Continuar");
+    await screen.findByText("Revisa tu publicación");
+    click("Confirmar edición");
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/recruiters"));
+    expect(toast.success).toHaveBeenCalledWith("Vacante actualizada correctamente", {
+      position: "top-center",
+      duration: 5000,
+    });
+    expect(apiClient.put).toHaveBeenCalledWith(
+      `/companies/${COMPANY_ID}/job-offers/offer-1`,
+      EXPECTED_PAYLOAD,
+    );
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("muestra el error y no deja editar si la vacante no se puede cargar", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === "/job-offers/skills") return { data: { statusCode: 200, ok: true, detail: "", data: [] } };
+      throw responseError(404, { statusCode: 404, ok: false, detail: "La vacante no existe o no pertenece a la empresa." });
+    });
+    renderWithQuery(<RegisterVacancyView jobOfferId="offer-1" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("La vacante no existe o no pertenece a la empresa.");
+    expect(document.getElementById("title")).toBeNull();
   });
 });

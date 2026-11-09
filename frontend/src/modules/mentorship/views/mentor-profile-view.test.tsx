@@ -1,0 +1,206 @@
+import "@/shared/testing/indexed-db.mock";
+import { renderWithQuery as render } from "@/shared/testing/render-with-query";
+import { cleanup, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { profileService } from "@/modules/profile/services/profile.service";
+import { clearAccessToken, saveAccessToken } from "@/shared/services/storage/access-token-storage";
+
+import * as service from "../services/mentor-profile.service";
+import { MENTOR_PROFILE_FIXTURE } from "../testing/mentor-profile.fixture";
+import { MentorProfileView } from "./mentor-profile-view";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  clearAccessToken();
+});
+
+function mockCurrentUser(id: string) {
+  return vi.spyOn(profileService, "getProfile").mockResolvedValue({
+    id,
+    firstName: "Ana",
+    lastName: "Rojas",
+    institutionalEmail: "ana@example.test",
+    personalEmail: null,
+    phone: null,
+    city: null,
+    headline: null,
+    aboutMe: null,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+}
+
+describe("MentorProfileView", () => {
+  it("muestra intereses profesionales reales", async () => {
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(MENTOR_PROFILE_FIXTURE);
+    render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+    expect(await screen.findByRole("heading", { name: "Intereses profesionales" })).toBeInTheDocument();
+    for (const skill of MENTOR_PROFILE_FIXTURE.skills) expect(screen.getByText(skill.name)).toBeInTheDocument();
+  });
+
+  it("informa un perfil sin nombre en lugar de presentar datos vacíos", async () => {
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue({ ...MENTOR_PROFILE_FIXTURE, fullName: " " });
+    render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+    expect(await screen.findByText("Perfil incompleto")).toBeInTheDocument();
+    expect(screen.queryByText("Solicitar mentoría")).not.toBeInTheDocument();
+  });
+
+  it("muestra la información real del mentor", async () => {
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(
+      MENTOR_PROFILE_FIXTURE,
+    );
+
+    const { container } = render(
+      <MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />,
+    );
+
+    expect((await screen.findAllByText("Ana Rojas")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Arquitecta de Software")).toBeInTheDocument();
+    expect(screen.getByText("Backend")).toBeInTheDocument();
+    expect(screen.getByText("Arquitectura")).toBeInTheDocument();
+    expect(screen.getByText("Orientación técnica")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sobre mí" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Trayectoria actual" })).toBeInTheDocument();
+    expect(container.querySelector("main > div > div.grid")).toHaveClass(
+      "grid-cols-12",
+    );
+  });
+
+  it("maneja campos opcionales nulos sin inventar contenido", async () => {
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue({
+      ...MENTOR_PROFILE_FIXTURE,
+      headline: null,
+      aboutMe: null,
+      photoUrl: null,
+      city: null,
+      educations: [],
+      workExperiences: [],
+      skills: [],
+      certifications: [],
+      technicalAreas: [],
+      orientationTypes: [],
+    });
+
+    render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Ana Rojas" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sobre mí")).not.toBeInTheDocument();
+    expect(screen.queryByText("Trayectoria actual")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No hay áreas técnicas registradas."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Este mentor todavía no registró tipos de orientación."),
+    ).toBeInTheDocument();
+  });
+
+  it("muestra mensaje cuando el mentor no existe", async () => {
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(null);
+
+    render(<MentorProfileView mentorId="not-a-valid-mentor-id" />);
+
+    expect(await screen.findByText("Mentor no encontrado")).toBeInTheDocument();
+    expect(
+      screen.getByText("No se pudo encontrar el perfil solicitado."),
+    ).toBeInTheDocument();
+  });
+
+  it.each([true, false])(
+    "oculta la solicitud en el perfil propio con disponibilidad %s",
+    async (isAvailable) => {
+      await saveAccessToken("test-token");
+      mockCurrentUser(MENTOR_PROFILE_FIXTURE.id);
+      vi.spyOn(service, "getMentorProfile").mockResolvedValue({
+      ...MENTOR_PROFILE_FIXTURE,
+      isAvailable,
+    });
+
+      const { client } = render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+      expect(
+      await screen.findByRole("heading", { name: "Ana Rojas" }),
+    ).toBeInTheDocument();
+      await waitFor(() => expect(client.getQueryState(["mentorship", "current-user", "test-token"])?.status).toBe("success"));
+      expect(profileService.getProfile).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Solicitar mentoría")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sobre mí" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Trayectoria actual" })).toBeInTheDocument();
+      expect(screen.getByText(isAvailable ? "Disponible para mentoría" : "No disponible")).toBeInTheDocument();
+    },
+  );
+
+  it("conserva la acción habilitada de otro mentor disponible", async () => {
+    await saveAccessToken("test-token");
+    mockCurrentUser("0fa5e6de-63a4-430e-87fb-22f5eb700ecd");
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(MENTOR_PROFILE_FIXTURE);
+
+    render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+    expect(await screen.findByRole("button", { name: "Solicitar mentoría" })).toBeEnabled();
+  });
+
+  it("mantiene deshabilitada la acción de otro mentor no disponible, con el texto del CA6", async () => {
+    await saveAccessToken("test-token");
+    mockCurrentUser("0fa5e6de-63a4-430e-87fb-22f5eb700ecd");
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue({
+      ...MENTOR_PROFILE_FIXTURE,
+      isAvailable: false,
+    });
+
+    render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Este mentor no está recibiendo solicitudes por ahora",
+      }),
+    ).toBeDisabled();
+  });
+
+  it("no muestra la solicitud mientras se resuelve la identidad", async () => {
+    await saveAccessToken("test-token");
+    let resolveProfile: (value: Awaited<ReturnType<typeof profileService.getProfile>>) => void = () => {};
+    vi.spyOn(profileService, "getProfile").mockImplementation(() => new Promise((resolve) => {
+      resolveProfile = resolve;
+    }));
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(
+      MENTOR_PROFILE_FIXTURE,
+    );
+
+    const { client } = render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+    expect(await screen.findByRole("heading", { name: "Ana Rojas" })).toBeInTheDocument();
+    expect(screen.queryByText("Solicitar mentoría")).not.toBeInTheDocument();
+    resolveProfile({
+      id: MENTOR_PROFILE_FIXTURE.id,
+      firstName: "Ana",
+      lastName: "Rojas",
+      institutionalEmail: "ana@example.test",
+      personalEmail: null,
+      phone: null,
+      city: null,
+      headline: null,
+      aboutMe: null,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await waitFor(() => expect(client.getQueryState(["mentorship", "current-user", "test-token"])?.status).toBe("success"));
+    expect(profileService.getProfile).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Solicitar mentoría")).not.toBeInTheDocument();
+  });
+
+  it("no habilita solicitudes si falla la consulta de identidad", async () => {
+    await saveAccessToken("test-token");
+    vi.spyOn(profileService, "getProfile").mockRejectedValue(new Error("invalid session"));
+    vi.spyOn(service, "getMentorProfile").mockResolvedValue(MENTOR_PROFILE_FIXTURE);
+
+    const { client } = render(<MentorProfileView mentorId={MENTOR_PROFILE_FIXTURE.id} />);
+
+    expect(await screen.findByRole("heading", { name: "Ana Rojas" })).toBeInTheDocument();
+    await waitFor(() => expect(client.getQueryState(["mentorship", "current-user", "test-token"])?.status).toBe("error"));
+    expect(profileService.getProfile).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Solicitar mentoría")).not.toBeInTheDocument();
+  });
+});

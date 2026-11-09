@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import type {
-    Modality,
-    UpdateVacancyField,
-    VacancyConditions,
-    VacancyErrors,
-} from "../types/vacancy-conditions.types";
+import { useEffect, useState } from "react";
+import type { JobOfferDetailsResponse } from "../types/job-offer-details-response.types";
+import { formatSalaryInput } from "../utils/format-salary-input";
+import { useCurrentCompany } from "../hooks/use-current-company";
+import { useJobOfferDetails } from "./use-job-offer-details";
+import type { VacancyConditions } from "../types/vacancy-conditions.types";
+import type { Modality } from "../types/modality.types";
+import type { UpdateVacancyField } from "../types/update-vacancy-field.types";
+import type { VacancyErrors } from "../types/vacancy-errors.types";
 import {
     INFORMATION_FIELDS_ORDER,
     isFieldEmpty,
@@ -29,6 +31,37 @@ const INITIAL_CONDITIONS: VacancyConditions = {
     skills: [],
 };
 
+function toConditions(offer: JobOfferDetailsResponse): VacancyConditions {
+    return {
+        title: offer.title,
+        modality: offer.modality,
+        mapsLink: offer.locationUrl,
+        contractType: offer.contractType,
+        category: offer.category,
+        vacancyCount: String(offer.positionsAvailable),
+        salary: formatSalaryInput(offer.salaryRange, ""),
+        languages: offer.languages,
+        description: offer.description,
+        skills: offer.skills,
+    };
+}
+
+const STEP_PARAM = "paso";
+const LAST_STEP = 3;
+
+function readStepFromUrl(): number {
+    const step = Number(new URLSearchParams(window.location.search).get(STEP_PARAM));
+    return Number.isInteger(step) && step >= 1 && step <= LAST_STEP ? step : 1;
+}
+
+function writeStepToUrl(step: number, mode: "push" | "replace") {
+    const url = new URL(window.location.href);
+    if (step > 1) url.searchParams.set(STEP_PARAM, String(step));
+    else url.searchParams.delete(STEP_PARAM);
+    if (mode === "push") window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+}
+
 function focusField(field: keyof VacancyConditions) {
     const element = document.getElementById(field);
     if (!element) return;
@@ -36,12 +69,35 @@ function focusField(field: keyof VacancyConditions) {
     element.focus();
 }
 
-export function useJobOfferForm() {
-    const [currentStep, setCurrentStep] = useState(1);
-    const [conditions, setConditions] = useState<VacancyConditions>(INITIAL_CONDITIONS);
-    const [errors, setErrors] = useState<VacancyErrors>({});
+export function useJobOfferForm(jobOfferId?: string) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [conditions, setConditions] = useState<VacancyConditions>(INITIAL_CONDITIONS);
+  const [errors, setErrors] = useState<VacancyErrors>({});
 
-    function clearError(field: keyof VacancyConditions) {
+  const company = useCurrentCompany();
+  const details = useJobOfferDetails(
+    jobOfferId ? company.id : null,
+    jobOfferId ?? null,
+  );
+  const baseline = details.offer ? toConditions(details.offer) : null;
+  const [loadedOfferId, setLoadedOfferId] = useState<string | null>(null);
+  if (details.offer && details.offer.id !== loadedOfferId) {
+        setLoadedOfferId(details.offer.id);
+        setConditions(toConditions(details.offer));
+    }
+
+  useEffect(() => {
+        if (readStepFromUrl() > 1) writeStepToUrl(1, "replace");
+        const handlePopState = () => setCurrentStep(readStepFromUrl());
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, []);
+
+  useEffect(() => {
+        if (currentStep > readStepFromUrl()) writeStepToUrl(currentStep, "push");
+    }, [currentStep]);
+
+  function clearError(field: keyof VacancyConditions) {
         setErrors((prev) => {
             if (!prev[field]) return prev;
             const next = { ...prev };
@@ -50,16 +106,16 @@ export function useJobOfferForm() {
         });
     }
 
-    const updateField: UpdateVacancyField = (field, value) => {
+  const updateField: UpdateVacancyField = (field, value) => {
         setConditions((prev) => ({ ...prev, [field]: value }));
         clearError(field);
     };
 
-    function selectModality(modality: Modality) {
+  function selectModality(modality: Modality) {
         updateField("modality", modality);
     }
 
-    function validateField(field: keyof VacancyConditions) {
+  function validateField(field: keyof VacancyConditions) {
         if (isFieldEmpty(field, conditions)) {
             clearError(field);
             return;
@@ -72,11 +128,11 @@ export function useJobOfferForm() {
         }
     }
 
-    function validateMapsLink() {
+  function validateMapsLink() {
         validateField("mapsLink");
     }
 
-    function applyStepErrors(
+  function applyStepErrors(
         fields: (keyof VacancyConditions)[],
         found: VacancyErrors,
     ): keyof VacancyConditions | undefined {
@@ -88,15 +144,16 @@ export function useJobOfferForm() {
         return fields.find((field) => found[field]);
     }
 
-    function goNext() {
-        setCurrentStep((step) => Math.min(step + 1, 3));
+  function goNext() {
+        setCurrentStep((step) => Math.min(step + 1, LAST_STEP));
     }
 
-    function goBack() {
+  function goBack() {
         setCurrentStep((step) => Math.max(step - 1, 1));
+        if (readStepFromUrl() > 1) window.history.back();
     }
 
-    function handleContinue() {
+  function handleContinue() {
         const firstInvalid = applyStepErrors(INFORMATION_FIELDS_ORDER, validateInformation(conditions));
         if (firstInvalid) {
             focusField(firstInvalid);
@@ -105,7 +162,7 @@ export function useJobOfferForm() {
         goNext();
     }
 
-    function handleRequirementsContinue() {
+  function handleRequirementsContinue() {
         const firstInvalid = applyStepErrors(REQUIREMENTS_FIELDS_ORDER, validateRequirements(conditions));
         if (firstInvalid) {
             focusField(firstInvalid);
@@ -114,21 +171,26 @@ export function useJobOfferForm() {
         goNext();
     }
 
-    const hasUnsavedChanges = (Object.keys(INITIAL_CONDITIONS) as (keyof VacancyConditions)[]).some(
-        (field) => !isFieldEmpty(field, conditions),
-    );
+  const hasUnsavedChanges = baseline
+        ? JSON.stringify(conditions) !== JSON.stringify(baseline)
+        : (Object.keys(INITIAL_CONDITIONS) as (keyof VacancyConditions)[]).some(
+              (field) => !isFieldEmpty(field, conditions),
+          );
 
-    function reset() {
-        setConditions(INITIAL_CONDITIONS);
+  function reset() {
+        setConditions(baseline ?? INITIAL_CONDITIONS);
         setErrors({});
         setCurrentStep(1);
+        writeStepToUrl(1, "replace");
     }
 
-    return {
+  return {
         currentStep,
         conditions,
         errors,
         hasUnsavedChanges,
+        isLoading: Boolean(jobOfferId) && details.status === "loading",
+        loadError: jobOfferId ? details.errorMessage : null,
         updateField,
         selectModality,
         validateField,

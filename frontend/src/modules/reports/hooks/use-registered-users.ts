@@ -1,0 +1,69 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { isConnectionError } from "@/shared/utils/is-connection-error";
+import { REGISTERED_USERS_PAGE_SIZE, SLOW_REQUEST_THRESHOLD_MS } from "../constants/reports.constants";
+import { reportsService } from "../services/reports.service";
+import { useReportSnapshot } from "./use-report-snapshot";
+import type { AcademicPeriod, RegisteredUsersState } from "../types/registered-user.types";
+import type { RoleTag } from "@/modules/auth";
+
+export function useRegisteredUsers(page: number, userType?: RoleTag, period?: AcademicPeriod, search = "") {
+  const [state, setState] = useState<RegisteredUsersState | null>(null);
+  const [slowRequestKey, setSlowRequestKey] = useState<string | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const { resolveSnapshotAt, renewSnapshot } = useReportSnapshot();
+  const requestKey = `${page}-${userType ?? "ALL"}-${period ?? "ALL"}-${search}-${refreshCount}`;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const slowTimer = setTimeout(() => {
+      if (!isCancelled) setSlowRequestKey(requestKey);
+    }, SLOW_REQUEST_THRESHOLD_MS);
+
+    const snapshotAt = resolveSnapshotAt(page);
+    reportsService
+      .getRegisteredUsers({ page, limit: REGISTERED_USERS_PAGE_SIZE, userType, period, search, ...(snapshotAt && { snapshotAt }) })
+      .then((response) => {
+        if (!isCancelled) setState({ requestKey, result: response.data });
+      })
+      .catch((error: unknown) => {
+        if (isCancelled) return;
+        const hasConnectionError = isConnectionError(error);
+
+        setState((previous) => ({
+          requestKey,
+          result: hasConnectionError ? previous?.result : undefined,
+          errorMessage: "No se pudo cargar el reporte de usuarios registrados.",
+          hasConnectionError,
+        }));
+      })
+      .finally(() => clearTimeout(slowTimer));
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(slowTimer);
+    };
+  }, [page, userType, period, search, requestKey, resolveSnapshotAt]);
+
+  const refresh = useCallback(() => {
+    renewSnapshot();
+    setRefreshCount((count) => count + 1);
+  }, [renewSnapshot]);
+
+  const isCurrentRequest = state?.requestKey === requestKey;
+  const users = isCurrentRequest ? (state.result?.items ?? []) : [];
+  const totalItems = state?.result?.totalItems ?? 0;
+
+  return {
+    users,
+    totalItems,
+    totalPages: Math.max(1, Math.ceil(totalItems / REGISTERED_USERS_PAGE_SIZE)),
+    isLoading: !isCurrentRequest,
+    errorMessage: isCurrentRequest && users.length === 0 ? state.errorMessage : undefined,
+    isSlow: !isCurrentRequest && slowRequestKey === requestKey,
+    hasConnectionError: isCurrentRequest && Boolean(state.hasConnectionError),
+    refresh,
+  };
+}

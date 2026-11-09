@@ -1,26 +1,34 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module.js';
-import { getCorsOrigins } from './common/config/cors-origins.js';
+import { validateEnv } from './common/utils/validate-env.js';
+import { buildSwaggerConfig } from './config/swagger.config.js';
 
 async function bootstrap(): Promise<void> {
+  validateEnv();
+
   const app = await NestFactory.create(AppModule);
 
-  const corsOrigins = getCorsOrigins(process.env.CORS_ORIGIN);
+  const corsOrigins = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
 
-  app.enableCors(corsOrigins.length > 0 ? { origin: corsOrigins } : {});
+  app.enableCors({
+    origin: corsOrigins,
+    exposedHeaders: ['Content-Disposition', 'Retry-After'],
+  });
   app.setGlobalPrefix('api');
 
-  const config = new DocumentBuilder()
-    .setTitle('API Documentation')
-    .setDescription('None')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  const config = buildSwaggerConfig();
 
-  const documentFactory = () => SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, documentFactory);
+  const documentFactory = () =>
+    cleanupOpenApiDoc(SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup('docs', app, documentFactory, {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
@@ -32,8 +40,6 @@ async function bootstrap(): Promise<void> {
   );
 }
 
-// Vercel captures server.listen() while importing this module and binds the
-// server afterwards. Awaiting bootstrap here prevents that import from ending.
 void bootstrap().catch((error: unknown) => {
   console.error('[bootstrap] FAILED', error);
   process.exit(1);

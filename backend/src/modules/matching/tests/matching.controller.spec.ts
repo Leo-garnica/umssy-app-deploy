@@ -4,24 +4,89 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.js';
 import { MatchingController } from '../controllers/matching.controller.js';
 import type { MatchingService } from '../services/matching.service.js';
 
+const USER_ID = '0b9f8a52-3c1d-4e7a-9d55-6f1c2a8b7e10';
 const EXPERIENCE_ID = '5b1f0c3e-8a4d-4f0b-9a52-1d6c7e2a9b10';
 
 describe('MatchingController', () => {
   it('protege el controlador con JwtAuthGuard', () => {
-    expect(Reflect.getMetadata(GUARDS_METADATA, MatchingController)).toEqual([JwtAuthGuard]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, MatchingController)).toEqual([
+      JwtAuthGuard,
+    ]);
   });
 
-  it('delega el analisis al servicio con el id de la ruta y el texto del body', async () => {
-    const response = { experienceId: EXPERIENCE_ID, skills: [], processingTimeMs: 3 };
-    const matchingService = { analyzeExperience: vi.fn().mockResolvedValue(response) };
-    const controller = new MatchingController(matchingService as unknown as MatchingService);
+  it('delega la vista previa al servicio con el usuario, id y texto recibidos', async () => {
+    const response = {
+      experienceId: EXPERIENCE_ID,
+      skills: [{ id: 'a1', name: 'Python' }],
+      processingTimeMs: 5,
+    };
+
+    const matchingService = {
+      previewExperience: vi.fn().mockResolvedValue(response),
+    };
+
+    const controller = new MatchingController(
+      matchingService as unknown as MatchingService,
+    );
+
+    const result = await controller.previewExperience(
+      USER_ID,
+      { id: EXPERIENCE_ID },
+      { text: 'Python' },
+    );
+
+    expect(matchingService.previewExperience).toHaveBeenCalledWith(USER_ID, {
+      experienceId: EXPERIENCE_ID,
+      text: 'Python',
+    });
+
+    expect(result).toEqual(response);
+  });
+
+  it('pasa texto nulo a la vista previa sin modificarlo', async () => {
+    const matchingService = {
+      previewExperience: vi.fn().mockResolvedValue({
+        experienceId: EXPERIENCE_ID,
+        skills: [],
+        processingTimeMs: 0,
+      }),
+    };
+
+    const controller = new MatchingController(
+      matchingService as unknown as MatchingService,
+    );
+
+    await controller.previewExperience(
+      USER_ID,
+      { id: EXPERIENCE_ID },
+      { text: null },
+    );
+
+    expect(matchingService.previewExperience).toHaveBeenCalledWith(USER_ID, {
+      experienceId: EXPERIENCE_ID,
+      text: null,
+    });
+  });
+  it('delega el analisis al servicio con el usuario autenticado, el id de la ruta y el texto del body', async () => {
+    const response = {
+      experienceId: EXPERIENCE_ID,
+      skills: [],
+      processingTimeMs: 3,
+    };
+    const matchingService = {
+      analyzeExperience: vi.fn().mockResolvedValue(response),
+    };
+    const controller = new MatchingController(
+      matchingService as unknown as MatchingService,
+    );
 
     const result = await controller.analyzeExperience(
+      USER_ID,
       { id: EXPERIENCE_ID },
       { text: 'Python y Django' },
     );
 
-    expect(matchingService.analyzeExperience).toHaveBeenCalledWith({
+    expect(matchingService.analyzeExperience).toHaveBeenCalledWith(USER_ID, {
       experienceId: EXPERIENCE_ID,
       text: 'Python y Django',
     });
@@ -30,15 +95,23 @@ describe('MatchingController', () => {
 
   it('pasa el texto nulo al servicio sin modificarlo', async () => {
     const matchingService = {
-      analyzeExperience: vi
-        .fn()
-        .mockResolvedValue({ experienceId: EXPERIENCE_ID, skills: [], processingTimeMs: 0 }),
+      analyzeExperience: vi.fn().mockResolvedValue({
+        experienceId: EXPERIENCE_ID,
+        skills: [],
+        processingTimeMs: 0,
+      }),
     };
-    const controller = new MatchingController(matchingService as unknown as MatchingService);
+    const controller = new MatchingController(
+      matchingService as unknown as MatchingService,
+    );
 
-    await controller.analyzeExperience({ id: EXPERIENCE_ID }, { text: null });
+    await controller.analyzeExperience(
+      USER_ID,
+      { id: EXPERIENCE_ID },
+      { text: null },
+    );
 
-    expect(matchingService.analyzeExperience).toHaveBeenCalledWith({
+    expect(matchingService.analyzeExperience).toHaveBeenCalledWith(USER_ID, {
       experienceId: EXPERIENCE_ID,
       text: null,
     });

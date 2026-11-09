@@ -1,52 +1,68 @@
-import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-import { clearAccessToken, saveAccessToken } from "@/shared/services/storage/access-token-storage";
+import "@/shared/testing/indexed-db.mock";
+import { getAccessToken } from "@/shared/services/storage/access-token-storage";
+import { Button as TestButton } from "@/components/ui/button";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { authService } from "@/modules/auth";
+import { saveAccessToken, clearAccessToken } from "@/shared/services/storage/access-token-storage";
 import { AuthProvider, useAuth } from "./auth-context";
-
-function createToken(payload: unknown) {
-  return `header.${btoa(JSON.stringify(payload))}.signature`;
-}
-
-function RolesProbe() {
-  const { roles, isLoading } = useAuth();
-  return <p>{isLoading ? "loading" : roles.join(",") || "no roles"}</p>;
-}
 
 afterEach(() => {
   cleanup();
-  sessionStorage.clear();
+  clearAccessToken();
+  vi.restoreAllMocks();
 });
 
+function SessionConsumer() {
+  const { currentUserId, roles, refreshRoles } = useAuth();
+  return (
+    <>
+      <p data-testid="user-id">{currentUserId}</p>
+      <p data-testid="roles">{roles.join(",")}</p>
+      <TestButton onClick={() => void refreshRoles()}>Actualizar roles</TestButton>
+    </>
+  );
+}
+
+function renderSession() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}><AuthProvider><SessionConsumer /></AuthProvider></QueryClientProvider>);
+}
+
 describe("AuthProvider", () => {
-  it("reads the roles from the stored access token", () => {
-    saveAccessToken(createToken({ roleTag: "titulado" }));
+  it("loads all current roles for an existing single-role token and refreshes them", async () => {
+    await saveAccessToken(
+      `h.${btoa(JSON.stringify({ roleTag: "titulado" }))}.s`,
+    );
+    const getSession = vi.spyOn(authService, "getSession").mockResolvedValue({ id: "u1", email: "user@test.com", roles: ["titulado", "mentor"] });
+    renderSession();
+    await waitFor(() => expect(screen.getByTestId("user-id")).toHaveTextContent("u1"));
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("titulado,mentor"));
 
-    render(<AuthProvider><RolesProbe /></AuthProvider>);
+    getSession.mockResolvedValue({ id: "u1", email: "user@test.com", roles: ["titulado"] });
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar roles" }));
+    await waitFor(() => expect(screen.getByTestId("roles").textContent).toBe("titulado"));
 
-    expect(screen.getByText("titulado")).toBeInTheDocument();
+    act(() => { clearAccessToken(); });
+    expect(screen.getByTestId("user-id").textContent).toBe("");
+    expect(screen.getByTestId("roles").textContent).toBe("");
   });
 
-  it("updates the roles when the session starts or ends", () => {
-    render(<AuthProvider><RolesProbe /></AuthProvider>);
-    expect(screen.getByText("no roles")).toBeInTheDocument();
-
-    act(() => {
-      saveAccessToken(createToken({ roles: ["mentor", "titulado"] }));
-    });
-    expect(screen.getByText("titulado,mentor")).toBeInTheDocument();
-
-    act(() => {
-      clearAccessToken();
-    });
-    expect(screen.getByText("no roles")).toBeInTheDocument();
+  it("does not fetch roles without a session", () => {
+    const getSession = vi.spyOn(authService, "getSession");
+    renderSession();
+    expect(getSession).not.toHaveBeenCalled();
+    expect(screen.getByTestId("roles").textContent).toBe("");
   });
 
-  it("falls back to the token roles without a provider", () => {
-    saveAccessToken(createToken({ roleTag: "mentor" }));
-
-    const { result } = renderHook(() => useAuth());
-
-    expect(result.current.roles).toEqual(["mentor"]);
-    expect(result.current.isLoading).toBe(false);
+  it("clears a revoked session instead of retaining JWT permissions", async () => {
+    await saveAccessToken(
+      `h.${btoa(JSON.stringify({ roles: ["administrativo"] }))}.s`,
+    );
+    vi.spyOn(authService, "getSession").mockRejectedValue(Object.assign(new Error("Unauthorized"), { isAxiosError: true, response: { status: 401 } }));
+    renderSession();
+    await waitFor(() => expect(getAccessToken()).toBeNull());
+    expect(screen.getByTestId("roles").textContent).toBe("");
   });
 });

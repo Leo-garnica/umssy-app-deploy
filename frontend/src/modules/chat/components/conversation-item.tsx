@@ -1,0 +1,155 @@
+"use client";
+
+import { Lock, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+import type { Conversation } from "../types/conversation.types";
+import {
+  formatConversationDate,
+  getInitials,
+} from "../utils/date-formatter";
+
+interface ConversationItemProps {
+  conversation: Conversation;
+  isSelected: boolean;
+  onSelect: (conversation: Conversation) => void;
+}
+
+export function ConversationItem({
+  conversation,
+  isSelected,
+  onSelect,
+}: ConversationItemProps) {
+  const { lastMessage, unreadCount } = conversation;
+  const contact = conversation.eventId
+    ? { fullName: conversation.eventTitle ?? 'Chat del evento', avatarUrl: null, isOnline: false }
+    : conversation.contact;
+  if (!contact) return null;
+  const hasUnread = unreadCount > 0;
+
+  const renderMessagePreview = () => {
+    if (conversation.isBlockedByMe) {
+      return (
+        <span data-testid="conversation-blocked-label" className="inline-flex items-center gap-1 font-medium text-ink-soft">
+          <Lock className="size-3" aria-hidden="true" />
+          Bloqueado
+        </span>
+      );
+    }
+
+    if (!lastMessage) {
+      return (
+        <span className="text-text-secondary italic">
+          Conversación iniciada
+        </span>
+      );
+    }
+
+    if (lastMessage.isAttachment) {
+      const label =
+        lastMessage.attachmentType === "image"
+          ? "Foto"
+          : lastMessage.attachmentType === "audio"
+            ? "Audio"
+            : "Archivo";
+
+      return (
+        <span className="font-medium text-ink-soft">
+          [{label}] {lastMessage.content}
+        </span>
+      );
+    }
+
+    return <span>{lastMessage.content}</span>;
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={() => onSelect(conversation)}
+      aria-pressed={isSelected}
+      className={`flex h-auto w-full items-center justify-start gap-3 rounded-none border-0 border-b border-border p-3.5 text-left font-normal whitespace-normal transition-all hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
+        isSelected
+          ? "bg-interaction ring-1 ring-border-strong ring-inset"
+          : "bg-surface"
+      }`}
+    >
+      <div className="relative shrink-0">
+        {contact.avatarUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={contact.avatarUrl}
+            alt={contact.fullName}
+            className="size-12 rounded-full border border-border object-cover"
+          />
+        ) : (
+          <div className="flex size-12 items-center justify-center rounded-full border border-border-strong bg-border text-sm font-bold text-ink-soft">
+            {getInitials(contact.fullName)}
+          </div>
+        )}
+
+        {conversation.eventId && (
+          <span
+            data-testid="conversation-group-icon"
+            aria-hidden="true"
+            className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full border-2 border-surface bg-accent text-accent-foreground"
+          >
+            <Users className="size-2.5" />
+          </span>
+        )}
+
+        {contact.isOnline && !conversation.isBlockedByMe && (
+          <span
+            className="absolute right-0 bottom-0 size-3.5 rounded-full border-2 border-surface bg-ink-soft shadow-xs"
+            title="En línea"
+          />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center justify-between gap-1">
+          <h4
+            className={`truncate text-sm ${
+              hasUnread
+                ? "font-bold text-ink"
+                : "font-semibold text-ink"
+            }`}
+          >
+            {contact.fullName}
+          </h4>
+
+          <span
+            className={`shrink-0 text-xs whitespace-nowrap ${
+              hasUnread
+                ? "font-semibold text-accent"
+                : "text-text-secondary"
+            }`}
+          >
+            {formatConversationDate(
+              lastMessage?.createdAt || conversation.updatedAt
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <p
+            className={`min-w-0 flex-1 truncate text-xs ${
+              hasUnread
+                ? "font-medium text-ink"
+                : "text-text-secondary"
+            }`}
+          >
+            {renderMessagePreview()}
+          </p>
+
+          {hasUnread && (
+            <span className="min-w-4 shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-center text-[10px] font-bold text-accent-foreground shadow-xs">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </div>
+      </div>
+    </Button>
+  );
+}

@@ -1,0 +1,184 @@
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderWithQuery } from "@/shared/testing/render-with-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { detail } from "../components/detail/data-contrast-panel.test";
+import { requestReviewService } from "../services/request-review.service";
+import { formatShortDate } from "../utils/format-long-date";
+import { RequestDetailView } from "./request-detail-view";
+
+const getRequestDetail = vi.spyOn(requestReviewService, "getRequestDetail");
+const getDocumentBlob = vi.spyOn(requestReviewService, "getDocumentBlob");
+const revoke = vi.fn();
+
+describe("RequestDetailView", () => {
+  beforeEach(() => {
+    getRequestDetail.mockReset();
+    getDocumentBlob.mockReset();
+    revoke.mockReset();
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:documento", revokeObjectURL: revoke });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("muestra el esqueleto y luego el encabezado, el visor y el panel de contraste", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: detail });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+
+    expect(screen.getByTestId("detail-skeleton")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "José Luis Pérez" })).toBeInTheDocument();
+    expect(screen.getByText("SOL-2026-0001")).toBeInTheDocument();
+    expect(screen.getByText("En revisión")).toBeInTheDocument();
+    expect(await screen.findByTitle("Documento de respaldo")).toHaveAttribute("src", "blob:documento#toolbar=0&navpanes=0&view=FitH");
+    expect(screen.getByRole("region", { name: "Contraste de datos" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Volver a la bandeja/ })).toHaveAttribute("href", "/backoffice/solicitudes");
+    expect(getDocumentBlob).toHaveBeenCalledWith("id-1");
+  });
+
+  it("muestra el error si la solicitud no se puede cargar", async () => {
+    getRequestDetail.mockResolvedValue({ ok: false, status: 404, message: "La solicitud no existe." });
+    renderWithQuery(<RequestDetailView id="x" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("La solicitud no existe.");
+    expect(getDocumentBlob).not.toHaveBeenCalled();
+  });
+
+  it("avisa si la solicitud no tiene documento y no lo pide", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: { ...detail, document: null, requestCode: null } });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+
+    expect(await screen.findByText("Esta solicitud no tiene un documento adjunto.")).toBeInTheDocument();
+    expect(getDocumentBlob).not.toHaveBeenCalled();
+  });
+
+  it("muestra el error del documento si no se puede descargar", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: detail });
+    getDocumentBlob.mockResolvedValue({ ok: false, status: 0, message: "No se pudo conectar con el servidor. Inténtalo de nuevo." });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+
+    expect(await screen.findByText("No se pudo conectar con el servidor. Inténtalo de nuevo.")).toBeInTheDocument();
+  });
+
+  it("libera la URL del documento al salir", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: detail });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    const view = renderWithQuery(<RequestDetailView id="id-1" />);
+    await screen.findByTitle("Documento de respaldo");
+
+    view.unmount();
+
+    expect(revoke).toHaveBeenCalledWith("blob:documento");
+  });
+
+  const openedHistory = {
+    submittedAt: "2026-09-22T13:14:00.000Z",
+    openedAt: "2026-09-22T15:02:00.000Z",
+    openedBy: "Admin Uno",
+    reviewedAt: "2026-09-22T15:02:00.000Z",
+    reviewedBy: "Admin Uno",
+    rejectionReason: null,
+  };
+
+  it("al aprobar, el estado en pantalla pasa de En revisión a Aprobada con lo que devuelve el servidor", async () => {
+    getRequestDetail
+      .mockResolvedValueOnce({ ok: true, data: { ...detail, history: openedHistory } })
+      .mockResolvedValue({
+        ok: true,
+        data: { ...detail, status: "approved", history: { ...openedHistory, reviewedAt: "2026-09-22T18:30:00.000Z" } },
+      });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    vi.spyOn(requestReviewService, "approveRequest").mockResolvedValue({
+      ok: true,
+      data: { id: "id-1", status: "approved", activationCodeSent: true },
+    });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+    expect(await screen.findByText("En revisión")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar solicitud" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Aprobar y enviar código" }));
+
+    expect(await screen.findByText("Aprobada")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aprobar solicitud" })).toBeNull();
+    expect(screen.getByText("Aprobada por Admin Uno")).toBeInTheDocument();
+    expect(getRequestDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("al rechazar con motivo, el historial conserva la apertura y suma el rechazo con su hora sin recargar la página", async () => {
+    getRequestDetail
+      .mockResolvedValueOnce({ ok: true, data: { ...detail, history: openedHistory } })
+      .mockResolvedValue({
+        ok: true,
+        data: {
+          ...detail,
+          status: "rejected",
+          history: { ...openedHistory, reviewedAt: "2026-09-22T18:30:00.000Z", rejectionReason: "Documento ilegible" },
+        },
+      });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    vi.spyOn(requestReviewService, "rejectRequest").mockResolvedValue({
+      ok: true,
+      data: { id: "id-1", status: "rejected", notificationSent: true },
+    });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+    await screen.findByText("En revisión");
+    expect(screen.getByText("Abierta por Admin Uno")).toBeInTheDocument();
+    expect(screen.getByText(formatShortDate("2026-09-22T15:02:00.000Z") ?? "")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar" }));
+    await screen.findByLabelText("Indicación para el solicitante");
+    fireEvent.click(screen.getByRole("radio", { name: "Documento ilegible" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar y notificar" }));
+
+    expect(await screen.findByText("Rechazada")).toBeInTheDocument();
+    expect(screen.getByText("Rechazada por Admin Uno")).toBeInTheDocument();
+    expect(screen.getByText(formatShortDate("2026-09-22T18:30:00.000Z") ?? "")).toBeInTheDocument();
+    expect(screen.getByText("Abierta por Admin Uno")).toBeInTheDocument();
+    expect(screen.getByText(formatShortDate("2026-09-22T15:02:00.000Z") ?? "")).toBeInTheDocument();
+    expect(getRequestDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("muestra el regreso, el nombre con el texto de estado y el subtítulo con la carrera y la fecha larga", async () => {
+    getRequestDetail.mockResolvedValue({
+      ok: true,
+      data: { ...detail, history: { ...openedHistory, openedBy: "Carla Montaño", reviewedBy: "Carla Montaño" } },
+    });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+
+    expect(await screen.findByRole("heading", { name: "José Luis Pérez" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Solicitudes de acceso" })).not.toBeInTheDocument();
+    expect(screen.getByText("SOL-2026-0001")).toHaveClass("font-medium");
+    expect(screen.getByText("En revisión")).toHaveClass("text-ink-soft");
+    expect(screen.getByText(/Licenciatura en Ingeniería de Sistemas\. Solicitud enviada el 22 de septiembre de 2026, 09:14\./)).toBeInTheDocument();
+    expect(screen.getByText("Historial de esta solicitud")).toBeInTheDocument();
+    expect(screen.getByText("Abierta por Carla Montaño")).toBeInTheDocument();
+    expect(await screen.findByText("Documento: Diploma académico")).toBeInTheDocument();
+    expect(screen.queryByText("Anterior")).toBeNull();
+    expect(screen.queryByText("Siguiente")).toBeNull();
+  });
+
+  it("sin historial ni fecha de envío no inventa nada", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: detail });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    renderWithQuery(<RequestDetailView id="id-1" />);
+
+    await screen.findByRole("heading", { name: "José Luis Pérez" });
+    expect(screen.queryByText("Historial de esta solicitud")).toBeNull();
+    expect(screen.getByText("Licenciatura en Ingeniería de Sistemas.")).toBeInTheDocument();
+  });
+
+  it("estructura: raíz de ancho completo, relleno heredado del contenedor, cuadrícula de dos columnas y contraste con tabla fija", async () => {
+    getRequestDetail.mockResolvedValue({ ok: true, data: detail });
+    getDocumentBlob.mockResolvedValue({ ok: true, data: new Blob(["%PDF"]) });
+    const { container } = renderWithQuery(<RequestDetailView id="id-1" />);
+    await screen.findByRole("heading", { name: "José Luis Pérez" });
+
+    expect(container.firstElementChild).toHaveClass("w-full", "min-w-0");
+    expect(container.querySelector("section")).toHaveClass("w-full", "min-w-0", "gap-6");
+    expect(container.querySelector(".grid")?.className).toContain("lg:grid-cols-[minmax(0,1.37fr)_minmax(0,1fr)]");
+    expect(container.querySelector("table")).toHaveClass("table-fixed");
+    expect(screen.getByText("En el documento")).toBeInTheDocument();
+  });
+});

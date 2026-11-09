@@ -1,0 +1,73 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { BlockAppointmentDetail } from "./block-appointment-detail";
+import { BlockForm } from "./block-form";
+import { DeleteBlockDialog } from "./delete-block-dialog";
+import { DangerZone } from "@/shared/components/layout/danger-zone";
+
+import { DELETE_BLOCK_TEXT } from "../constants/delete-block.constants";
+import { useUpdateAvailabilityBlock } from "../hooks/use-update-availability-block";
+import type { CreateAvailabilityBlockInput } from "../types/create-availability-block-input.types";
+import type { EditBlockPanelProps } from "../types/edit-block-panel-props.types";
+
+export function EditBlockPanel({ block, onClose }: EditBlockPanelProps) {
+  const { updateBlock, isSubmitting } = useUpdateAvailabilityBlock();
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  if (!block) {
+    return (
+      <p role="alert" className="rounded-lg border border-dashed border-border p-6 text-center text-destructive">
+        {"No se pudo cargar el bloque de disponibilidad"}
+      </p>
+    );
+  }
+
+  const isEditable = block.state === "free";
+
+  const handleSubmit = async (values: CreateAvailabilityBlockInput) => {
+    const updated = await updateBlock(block.id, values);
+    if (updated) {
+      onClose();
+    }
+  };
+
+  return (
+    <aside aria-label="Panel de edición del bloque" className="flex flex-col gap-4">
+      {block.appointment && <BlockAppointmentDetail block={block} appointment={block.appointment} />}
+
+      <BlockForm
+        mode="edit"
+        initialValues={{ startAt: block.startAt, endAt: block.endAt }}
+        isSubmitting={isSubmitting}
+        disabled={!isEditable}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+      />
+
+      <DangerZone title="Eliminar bloque" description="Este horario dejará de estar disponible para solicitar una mentoría.">
+        <Button
+          type="button"
+          variant="destructive"
+          size="lg"
+          className="w-full"
+          disabled={!isEditable}
+          onClick={() => setIsDeleteOpen(true)}
+        >
+          {DELETE_BLOCK_TEXT.action}
+        </Button>
+        {!isEditable && (
+          <p className="text-center text-xs text-muted-foreground">{"Solo se puede editar si el bloque no tiene ninguna cita asociada."}</p>
+        )}
+      </DangerZone>
+
+      <DeleteBlockDialog
+        block={block}
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onDeleted={onClose}
+      />
+    </aside>
+  );
+}

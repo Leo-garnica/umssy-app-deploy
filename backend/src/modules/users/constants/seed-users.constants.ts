@@ -1,0 +1,86 @@
+import type { SeedUserDefinition } from '../types/seed-user-definition.types.js';
+import type { SeedUserKey } from '../types/seed-user-key.types.js';
+
+export const SEED_USERS: ReadonlyArray<
+  SeedUserDefinition & { key: SeedUserKey }
+> = [
+  {
+    key: 'eventGraduate',
+    firstName: 'Usuario',
+    lastName: 'De Prueba',
+    email: 'prueba@umss.edu.bo',
+    roles: ['titulado'],
+  },
+  {
+    key: 'emptyGraduate',
+    firstName: 'Usuario',
+    lastName: 'Sin Pases',
+    email: 'sinpases@umss.edu.bo',
+    roles: ['titulado'],
+  },
+  {
+    key: 'mentorA',
+    firstName: 'Mentor',
+    lastName: 'Alfa',
+    email: 'mentor.a@umssy.test',
+    roles: ['mentor'],
+  },
+  {
+    key: 'mentorB',
+    firstName: 'Mentor',
+    lastName: 'Beta',
+    email: 'mentor.b@umssy.test',
+    roles: ['mentor'],
+  },
+  {
+    key: 'graduate',
+    firstName: 'Titulado',
+    lastName: 'Uno',
+    email: 'titulado.1@umssy.test',
+    roles: ['titulado'],
+  },
+  {
+    key: 'student',
+    firstName: 'Estudiante',
+    lastName: 'Uno',
+    email: 'estudiante.1@umssy.test',
+    roles: ['estudiante'],
+  },
+  {
+    key: 'admin',
+    firstName: 'Admin',
+    lastName: 'Uno',
+    email: 'admin.1@umssy.test',
+    roles: ['administrativo'],
+  },
+  {
+    key: 'admin2',
+    firstName: 'Admin',
+    lastName: 'Dos',
+    email: 'admin.2@umssy.test',
+    roles: ['administrativo'],
+  },
+  {
+    key: 'company',
+    firstName: 'Carlos',
+    lastName: 'Rojas',
+    email: 'empresa@umssy.test',
+    roles: ['empresa'],
+  },
+  {
+    key: 'adminGraduate',
+    firstName: 'Admin',
+    lastName: 'Titulado',
+    email: 'admin.titulado@umssy.test',
+    roles: ['administrativo', 'titulado'],
+  },
+  {
+    key: 'multiRole',
+    firstName: 'Usuario',
+    lastName: 'Multirrol',
+    email: 'multi.role@umssy.test',
+    roles: ['administrativo', 'empresa', 'mentor', 'titulado'],
+  },
+];
+
+export const LEGACY_ROLES = ['MENTOR', 'TITULADO'];

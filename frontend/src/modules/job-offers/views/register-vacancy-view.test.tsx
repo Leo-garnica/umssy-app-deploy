@@ -1,10 +1,24 @@
 import { Button as TestButton } from "@/components/ui/button";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderWithQuery as render } from "@/shared/testing/render-with-query";
-import { apiClient } from "@/shared/services/api-client";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_CONDITIONS, VALID_CONDITIONS } from "../testing/vacancy-fixtures";
 import { RegisterVacancyView } from "./register-vacancy-view";
+
+const { push, publishOptions } = vi.hoisted(() => ({
+  push: vi.fn(),
+  publishOptions: { current: undefined as { onSuccess?: () => void } | undefined },
+}));
+
+vi.mock("../hooks/use-current-company", () => ({
+  useCurrentCompany: () => ({
+    id: "company-1",
+    name: "TechBolivia S.R.L.",
+    initials: "TB",
+  }),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { form, publication, leaveGuard } = vi.hoisted(() => ({
   form: {
@@ -39,18 +53,19 @@ const useLeaveGuard = vi.fn((isActive: boolean) => {
   void isActive;
   return leaveGuard;
 });
-const usePublishJobOffer = vi.fn((companyId: string | null) => {
-  void companyId;
-  return publication;
-});
-const company = { id: "a0000000-0000-4000-8000-000000000007", name: "Empresa QA vinculada" };
-const companiesResponse = (companies = [company]) => ({ data: { statusCode: 200, ok: true, detail: "", data: companies } });
 
 vi.mock("../hooks/use-job-offer-form", () => ({ useJobOfferForm: () => form }));
-vi.mock("../hooks/use-publish-job-offer", () => ({ usePublishJobOffer: (companyId: string | null) => usePublishJobOffer(companyId) }));
+vi.mock("../hooks/use-publish-job-offer", () => ({
+  usePublishJobOffer: (_jobOfferId?: string, options?: { onSuccess?: () => void }) => {
+    publishOptions.current = options;
+    return publication;
+  },
+}));
 vi.mock("../hooks/use-leave-guard", () => ({ useLeaveGuard: (isActive: boolean) => useLeaveGuard(isActive) }));
 vi.mock("../components/vacancy-stepper", () => ({
-  VacancyStepper: ({ currentStep }: { currentStep: number }) => <div data-testid="stepper">Paso {currentStep}</div>,
+  VacancyStepper: ({ currentStep }: { currentStep: number }) => (
+    <div data-testid="stepper">Paso {currentStep}</div>
+  ),
 }));
 vi.mock("../components/information-step", () => ({
   InformationStep: ({ onCancel, onContinue }: { onCancel: () => void; onContinue: () => void }) => (
@@ -72,18 +87,14 @@ vi.mock("../components/preview-step", () => ({
   PreviewStep: (props: {
     onPrevious: () => void;
     onConfirm: () => void;
-    onFinish: () => void;
     isSubmitting: boolean;
-    isPublished: boolean;
     company: { name: string };
   }) => (
     <div data-testid="preview-step">
       <span>{props.isSubmitting ? "enviando" : "libre"}</span>
-      <span>{props.isPublished ? "publicada" : "pendiente"}</span>
       <span>{props.company.name}</span>
       <TestButton onClick={props.onPrevious}>Anterior</TestButton>
       <TestButton onClick={props.onConfirm}>Confirmar</TestButton>
-      <TestButton onClick={props.onFinish}>Aceptar</TestButton>
     </div>
   ),
 }));
@@ -96,7 +107,6 @@ function setStep(currentStep: number, conditions = EMPTY_CONDITIONS, hasUnsavedC
 
 describe("RegisterVacancyView", () => {
   beforeEach(() => {
-    vi.spyOn(apiClient, "get").mockReset().mockResolvedValue(companiesResponse());
     publication.isSubmitting = false;
     publication.isSuccess = false;
     leaveGuard.isLeaveDialogOpen = false;
@@ -105,7 +115,6 @@ describe("RegisterVacancyView", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
-    vi.restoreAllMocks();
   });
 
   it("muestra solo el paso actual", () => {
@@ -189,18 +198,16 @@ describe("RegisterVacancyView", () => {
     expect(leaveGuard.cancelLeave).toHaveBeenCalled();
   });
 
-  it("publica con la empresa real y los datos acumulados y muestra el estado del envío", async () => {
+  it("publica con los datos acumulados y muestra el estado del envío", () => {
     setStep(3, VALID_CONDITIONS, true);
     publication.isSubmitting = true;
     render(<RegisterVacancyView />);
-    await screen.findByTestId("preview-step");
 
     fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
 
     expect(publication.submit).toHaveBeenCalledWith(VALID_CONDITIONS);
     expect(screen.getByText("enviando")).toBeInTheDocument();
-    expect(screen.getByText(company.name)).toBeInTheDocument();
-    expect(usePublishJobOffer).toHaveBeenLastCalledWith(company.id);
+    expect(screen.getByText("TechBolivia S.R.L.")).toBeInTheDocument();
   });
 
   it("al aceptar el éxito limpia la publicación y el formulario", () => {
@@ -216,49 +223,54 @@ describe("RegisterVacancyView", () => {
     expect(form.reset).toHaveBeenCalledOnce();
   });
 
-  it("vuelve al paso anterior desde la vista previa", async () => {
+  it("vuelve al paso anterior desde la vista previa", () => {
     setStep(3, VALID_CONDITIONS, true);
     render(<RegisterVacancyView />);
-    await screen.findByTestId("preview-step");
 
     fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
 
     expect(form.goBack).toHaveBeenCalledOnce();
   });
-
-  it("muestra la cuenta sin empresa vinculada y no permite confirmar una publicación", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue(companiesResponse([]));
+  it("al publicar una vacante nueva no redirige ni notifica desde la vista", () => {
     setStep(3, VALID_CONDITIONS, true);
     render(<RegisterVacancyView />);
-    await screen.findByText(/No hay una empresa vinculada a tu cuenta/);
-    expect(screen.queryByTestId("preview-step")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
-    expect(publication.submit).not.toHaveBeenCalled();
+
+    expect(publishOptions.current?.onSuccess).toBeUndefined();
   });
 
-  it("exige seleccionar una empresa cuando la cuenta tiene varias y usa esa identidad", async () => {
-    const second = { id: "a0000000-0000-4000-8000-000000000008", name: "Segunda empresa QA" };
-    vi.mocked(apiClient.get).mockResolvedValue(companiesResponse([company, second]));
+  it("al guardar una edición avisa con una notificación y vuelve al listado", () => {
     setStep(3, VALID_CONDITIONS, true);
-    render(<RegisterVacancyView />);
-    const selector = await screen.findByRole("combobox", { name: "Empresa de la publicación" });
-    expect(screen.queryByTestId("preview-step")).not.toBeInTheDocument();
-    fireEvent.change(selector, { target: { value: second.id } });
-    expect(screen.getByTestId("preview-step")).toHaveTextContent(second.name);
-    expect(usePublishJobOffer).toHaveBeenLastCalledWith(second.id);
-    expect(form.reset).not.toHaveBeenCalled();
+    render(<RegisterVacancyView jobOfferId="offer-1" />);
+
+    publishOptions.current?.onSuccess?.();
+
+    expect(toast.success).toHaveBeenCalledWith("Vacante actualizada correctamente", {
+      position: "top-center",
+      duration: 5000,
+    });
+    expect(push).toHaveBeenCalledWith("/recruiters");
   });
 
-  it("conserva el borrador después de un fallo al consultar empresas y permite reintentar", async () => {
-    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Network Error")).mockResolvedValue(companiesResponse());
-    setStep(3, VALID_CONDITIONS, true);
-    render(<RegisterVacancyView />);
-    await screen.findByText(/No se pudieron consultar tus empresas/);
-    expect(screen.queryByTestId("preview-step")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reintentar empresas" }));
-    await screen.findByTestId("preview-step");
-    expect(form.conditions).toBe(VALID_CONDITIONS);
-    expect(form.reset).not.toHaveBeenCalled();
-    expect(usePublishJobOffer).toHaveBeenLastCalledWith(company.id);
+  it("en la edición los diálogos hablan de cambios no guardados", () => {
+    setStep(1, VALID_CONDITIONS, true);
+    leaveGuard.isLeaveDialogOpen = true;
+    render(<RegisterVacancyView jobOfferId="offer-1" />);
+
+    expect(screen.getByText("¿Salir sin guardar?")).toBeInTheDocument();
+    expect(screen.getByText("Los cambios no guardados se perderán si abandonas la pantalla.")).toBeInTheDocument();
+  });
+
+  it("al descartar una edición vuelve al listado", () => {
+    setStep(1, VALID_CONDITIONS, true);
+    render(<RegisterVacancyView jobOfferId="offer-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(
+      screen.getByText("Los cambios no guardados se perderán y la vacante conservará sus datos originales."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+
+    expect(form.reset).toHaveBeenCalledOnce();
+    expect(push).toHaveBeenCalledWith("/recruiters");
   });
 });

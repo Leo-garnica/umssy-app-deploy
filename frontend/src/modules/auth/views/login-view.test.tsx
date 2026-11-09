@@ -1,6 +1,6 @@
 import { renderWithQuery as render } from "@/shared/testing/render-with-query";
 import { cleanup, fireEvent,  screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveAccessToken } from "@/shared/services/storage/access-token-storage";
 import { useLogin } from "../hooks/use-login";
 import { LoginView } from "./login-view";
@@ -26,6 +26,9 @@ vi.mock("@/shared/contexts/auth-context", () => ({
 }));
 
 describe("LoginView", () => {
+  beforeEach(() => {
+    vi.mocked(saveAccessToken).mockResolvedValue(true);
+  });
   afterEach(() => {
     authState = { roles: [], isLoading: false };
     cleanup();
@@ -61,15 +64,22 @@ describe("LoginView", () => {
   });
 
   it("navigates once after signing in even though the session now has roles", async () => {
-    vi.mocked(saveAccessToken).mockImplementation(() => {
+    vi.mocked(saveAccessToken).mockImplementation(async () => {
       authState = { roles: ["titulado"], isLoading: false };
       return true;
     });
-    const login = vi.fn().mockResolvedValue({ accessToken: "returned-token", roleTag: "titulado" });
+    const login = vi.fn().mockResolvedValue({
+      accessToken: "returned-token",
+      roleTag: "titulado",
+    });
     vi.mocked(useLogin).mockReturnValue({ login, isLoading: false, error: null });
     render(<LoginView />);
-    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), { target: { value: "person@example.com" } });
-    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), { target: { value: "secret" } });
+    fireEvent.change(screen.getByPlaceholderText("nombre@ejemplo.com"), {
+      target: { value: "person@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Tu contraseña"), {
+      target: { value: "secret" },
+    });
     fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
 
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
@@ -82,7 +92,7 @@ describe("LoginView", () => {
     vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
     render(<LoginView />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/affinity-radar/review-queue"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/backoffice/solicitudes"));
   });
 
   async function submitLogin(login: unknown) {
@@ -96,12 +106,12 @@ describe("LoginView", () => {
   it("el administrativo va a la bandeja del backoffice", async () => {
     await submitLogin(vi.fn().mockResolvedValue({ accessToken: "t-admin", roleTag: "administrativo" }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/affinity-radar/review-queue"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/backoffice/solicitudes"));
     expect(push).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ['/login?next=/profile/documents', '/profile/documents'],
+    ['/login?next=/events/my-passes', '/events/my-passes'],
     ['/login?next=https://example.com', '/dashboard'],
     ['/login?next=//example.com', '/dashboard'],
   ])('respeta el retorno seguro desde %s hacia %s', async (url, destination) => {
@@ -115,7 +125,7 @@ describe("LoginView", () => {
   it.each([
     ['/login?next=%2Freports%2Fhistory%3Fx%3D1', '/dashboard'],
     ['/login?next=/profile/documents', '/profile/documents'],
-    ['/login?next=/affinity-radar/review-queue', '/dashboard'],
+    ['/login?next=/backoffice/solicitudes', '/dashboard'],
     ['/login?next=/%5Cevil.com', '/dashboard'],
     ['/login?next=/login', '/dashboard'],
   ])('vuelve a la ruta privada válida pedida desde %s hacia %s', async (url, destination) => {
@@ -126,10 +136,10 @@ describe("LoginView", () => {
   });
 
   it('el administrativo vuelve a la pantalla del backoffice que pidió', async () => {
-    window.history.replaceState({}, '', '/login?next=/affinity-radar/review-queue');
+    window.history.replaceState({}, '', '/login?next=/backoffice/solicitudes/abc');
     await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't-admin', roleTag: 'administrativo' }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/affinity-radar/review-queue'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/backoffice/solicitudes/abc'));
   });
 
   it('al iniciar sesión pone la cookie marcadora sin el token', async () => {
@@ -142,10 +152,10 @@ describe("LoginView", () => {
   });
 
   it('mantiene el backoffice para administrativos aunque exista un retorno a pases', async () => {
-    window.history.replaceState({}, '', '/login?next=/profile/documents');
+    window.history.replaceState({}, '', '/login?next=/events/my-passes');
     await submitLogin(vi.fn().mockResolvedValue({ accessToken: 't-admin', roleTag: 'administrativo' }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/affinity-radar/review-queue'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/backoffice/solicitudes'));
   });
 
   it.each(["titulado", "estudiante", "mentor", "empresa", "", "desconocido"])("el rol %j va a su portal", async (roleTag) => {
@@ -233,6 +243,13 @@ describe("LoginView", () => {
     expect(screen.getByRole("link", { name: "Solicitar acceso" })).toHaveAttribute("href", "/request-access");
   });
 
+  it("enlaza a la recuperación de contraseña", () => {
+    vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: null });
+    render(<LoginView />);
+
+    expect(screen.getByRole("link", { name: "¿Olvidaste tu contraseña?" })).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("muestra el error en una alerta accesible", () => {
     vi.mocked(useLogin).mockReturnValue({ login: vi.fn(), isLoading: false, error: "Correo o contraseña incorrectos" });
     render(<LoginView />);
@@ -256,9 +273,9 @@ describe("LoginView", () => {
   });
 
   it("uses the combined roles returned by the server when resuming a mentor route", async () => {
-    window.history.replaceState({}, "", "/login?next=/profile/radar");
+    window.history.replaceState({}, "", "/login?next=/mentor/availability");
     await submitLogin(vi.fn().mockResolvedValue({ accessToken: "multi", roleTag: "administrativo", roles: ["administrativo", "mentor"] }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/profile/radar"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/mentor/availability"));
   });
   it("reveals and hides the password without changing it or submitting", () => {
     const login=vi.fn();
@@ -273,5 +290,4 @@ describe("LoginView", () => {
     expect(input).toHaveAttribute("type","password");
     expect(login).not.toHaveBeenCalled();
   });
-
 });

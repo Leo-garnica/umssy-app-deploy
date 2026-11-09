@@ -1,8 +1,20 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, Post, UseGuards, UseInterceptors, UsePipes } from '@nestjs/common';
-import { ZodValidationPipe } from 'nestjs-zod';
-import { ApiBearerAuth, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiNotFoundResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { CurrentUserId } from '../../../common/decorators/current-user-id.decorator.js';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.js';
-import { ResponseInterceptor } from '../../../common/interceptors/response.interceptor.js';
 import { MatchingService } from '../services/matching.service.js';
 import {
   AnalyzeExperienceBodyDto,
@@ -14,19 +26,33 @@ import type { AnalyzeExperienceResponse } from '../types/matching.types.js';
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({ description: 'A valid access token is required' })
 @UseGuards(JwtAuthGuard)
-@UseInterceptors(ResponseInterceptor)
-@UsePipes(new ZodValidationPipe())
 @Controller('work-experiences')
 export class MatchingController {
   constructor(private readonly matchingService: MatchingService) {}
 
   @Post(':id/skills/analysis')
   @HttpCode(HttpStatus.OK)
+  @ApiNotFoundResponse({ description: 'Work experience not found' })
   analyzeExperience(
+    @CurrentUserId() userId: string,
     @Param() params: AnalyzeExperienceParamsDto,
     @Body() body: AnalyzeExperienceBodyDto,
   ): Promise<AnalyzeExperienceResponse> {
-    return this.matchingService.analyzeExperience({
+    return this.matchingService.analyzeExperience(userId, {
+      experienceId: params.id,
+      text: body.text,
+    });
+  }
+
+  @Post(':id/skills/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiNotFoundResponse({ description: 'Work experience not found' })
+  previewExperience(
+    @CurrentUserId() userId: string,
+    @Param() params: AnalyzeExperienceParamsDto,
+    @Body() body: AnalyzeExperienceBodyDto,
+  ): Promise<AnalyzeExperienceResponse> {
+    return this.matchingService.previewExperience(userId, {
       experienceId: params.id,
       text: body.text,
     });

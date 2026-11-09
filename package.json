@@ -1,10 +1,5 @@
 {
-  "name": "umssy-app",
-  "private": true,
-  "scripts": {
-    "prepare": "husky"
-  },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "eslint-plugin-tailwindcss": "^4.4.0"
   }
 }

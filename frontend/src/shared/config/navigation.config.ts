@@ -1,7 +1,7 @@
 import type { NavigationItem } from "@/shared/types/navigation-item.types";
 import { getRouteRoles } from "@/shared/utils/get-route-roles";
 import { WORKSPACE_SECTIONS } from "./workspace-sections.config";
-import { BriefcaseBusiness, Building2, House, Radar, UserRound } from "lucide-react";
+import { Bell, CalendarDays, ChartNoAxesCombined, ClipboardList, History, House, MessageCircle, Users, BriefcaseBusiness, Building2, Inbox, Radar, UserRound } from "lucide-react";
 
 function getSectionItems(sectionId: string) {
   return WORKSPACE_SECTIONS.find((section) => section.id === sectionId)?.items.map((item) => ({
@@ -11,11 +11,18 @@ function getSectionItems(sectionId: string) {
   })) ?? [];
 }
 
-// Publish Epic 2 and the integrated Epic 3 flows, filtered by role.
 export const SIDEBAR_NAVIGATION: NavigationItem[] = [
   { label: "Inicio", icon: House, href: "/dashboard", roles: getRouteRoles("/dashboard") },
   { label: "Mi perfil", icon: UserRound, activePathPatterns: [/^\/profile(?:\/|$)/], children: getSectionItems("profile") },
-  { label: "Mi empresa", icon: Building2, activePathPatterns: [/^\/(?:recruiters|matching)(?:\/|$)/], children: getSectionItems("company") },
-  { label: "Vacantes", icon: BriefcaseBusiness, href: "/vacancies", roles: getRouteRoles("/vacancies") },
+  { label: "Mentorías", icon: Users, activePathPatterns: [/^\/(?:mentorship|mentors|mentor|appointments)(?:\/|$)/], children: getSectionItems("mentorship") },
+  { label: "Talleres y eventos", icon: CalendarDays, activePathPatterns: [/^\/events(?:\/|$)/], children: getSectionItems("events") },
+  { label: "Vacantes", icon: BriefcaseBusiness, activePathPatterns: [/^\/vacancies(?:\/|$)/], children: getSectionItems("vacancies") },
+  { label: "Mensajes", icon: MessageCircle, href: "/chat", roles: getRouteRoles("/chat") },
+  { label: "Notificaciones de encuestas", icon: Bell, href: "/surveys", roles: getRouteRoles("/surveys") },
+  { label: "Mi empresa", icon: Building2, activePathPatterns: [/^\/(?:recruiters|matching)(?:\/|$)/, /^\/area-detail(?:-interaction)?-preview\/?$/], children: getSectionItems("company") },
+  { label: "Solicitudes", icon: Inbox, href: "/backoffice/solicitudes", roles: getRouteRoles("/backoffice") },
   { label: "Revisión de radares", icon: Radar, href: "/affinity-radar/review-queue", roles: getRouteRoles("/affinity-radar/review-queue") },
+  { label: "Reportes", icon: ChartNoAxesCombined, activePathPatterns: [/^\/backoffice\/reports(?:\/|$)/], children: getSectionItems("reports") },
+  { label: "Registro de auditoría", icon: History, href: "/backoffice/audit", roles: getRouteRoles("/backoffice/audit") },
+  { label: "Encuestas", icon: ClipboardList, activePathPatterns: [/^\/backoffice\/surveys(?:\/|$)/], children: getSectionItems("surveys") },
 ];

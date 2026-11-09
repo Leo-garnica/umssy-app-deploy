@@ -1,0 +1,390 @@
+import { notifyManager } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import type { ApiResponse, PaginatedData } from "@/shared/types/api-response.types";
+import { renderWithQuery } from "@/shared/testing/render-with-query";
+import * as downloadFileModule from "@/shared/utils/download-file";
+import { reportsService } from "../services/reports.service";
+import type { RejectedUser } from "../types/rejected-user.types";
+import { RejectedUsersReportView } from "./rejected-users-report-view";
+
+const REJECTED_USERS: RejectedUser[] = Array.from({ length: 24 }, (_, index) => ({
+  id: `rejected-${index + 1}`,
+  fullName: index === 0 ? "Juan Carlos Peres Rojas" : `Usuario rechazado ${index + 1}`,
+  email: index === 0 ? "juan.perez@gmail.com" : `usuario${index + 1}@gmail.com`,
+  userType: "titulado",
+  identifier: `2019${index.toString().padStart(5, "0")}`,
+  documentType: index === 1 ? "national_title" : "academic_diploma",
+  rejectionReason: null,
+  registeredAt: "2026-03-15T14:00:00.000Z",
+}));
+
+function buildResponse(page: number, limit: number, search = ""): ApiResponse<PaginatedData<RejectedUser>> {
+  const filteredUsers = REJECTED_USERS.filter((user) => user.email.includes(search));
+  const offset = (page - 1) * limit;
+
+  return {
+    statusCode: 200,
+    data: { items: filteredUsers.slice(offset, offset + limit), totalItems: filteredUsers.length },
+    page,
+    detail: "Usuarios rechazados obtenidos correctamente",
+    ok: true,
+  };
+}
+
+function getSearchInput() {
+  return screen.getByPlaceholderText<HTMLInputElement>("Buscar por correo electrónico");
+}
+
+async function searchFor(value: string, expectedSummary: string) {
+  fireEvent.change(getSearchInput(), { target: { value } });
+  await waitFor(() => {
+    expect(screen.getByText(expectedSummary)).toBeDefined();
+  });
+}
+
+describe("RejectedUsersReportView", () => {
+  beforeAll(() => {
+    notifyManager.setScheduler(queueMicrotask);
+  });
+
+  afterAll(() => {
+    notifyManager.setScheduler((callback) => setTimeout(callback, 0));
+  });
+
+  beforeEach(() => {
+    vi.spyOn(reportsService, "getRejectedUsers").mockImplementation(async ({ page, limit, search }) =>
+      buildResponse(page, limit, search),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("muestra el título, el buscador, los botones y la primera página", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+
+    expect(screen.getByRole("heading", { name: "Usuarios rechazados" })).toBeDefined();
+    expect(screen.getByPlaceholderText("Buscar por correo electrónico")).toBeDefined();
+    expect(screen.getByRole("button", { name: "actualizar" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeDefined();
+    expect(screen.getAllByTestId("skeleton-row")).toHaveLength(10);
+
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+    expect(screen.getAllByText("Diploma académico").length).toBeGreaterThan(0);
+    expect(screen.getByText("Título en provisión nacional")).toBeDefined();
+    expect(screen.getByText("Mostrando 1-10 de 24 usuarios")).toBeDefined();
+    expect(reportsService.getRejectedUsers).toHaveBeenCalledWith({ page: 1, limit: 10, search: "" }, expect.any(AbortSignal));
+  });
+
+  it("filtra por gestión, vuelve a la primera página y permite quitar el filtro", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-08T12:00:00-04:00"));
+    const user = userEvent.setup();
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Página 2" }));
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 11-20 de 24 usuarios")).toBeDefined();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Gestión" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "I-2026" }));
+
+    expect(await screen.findByRole("button", { name: "Gestión I-2026" })).toBeDefined();
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith(
+      { page: 1, limit: 10, period: "I-2026", search: "" },
+      expect.any(AbortSignal),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Gestión I-2026" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Todas" }));
+
+    expect(await screen.findByRole("button", { name: "Gestión" })).toBeDefined();
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith(
+      { page: 1, limit: 10, period: undefined, search: "" },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("filtra por tipo de usuario, vuelve a la primera página y lo incluye en la exportación", async () => {
+    const user = userEvent.setup();
+    const exportSpy = vi.spyOn(reportsService, "exportRejectedUsersCsv").mockResolvedValueOnce({ file: new Blob([]), fileName: "usuarios-rechazados.csv" });
+    vi.spyOn(downloadFileModule, "downloadFile").mockImplementation(() => undefined);
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Página 2" }));
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 11-20 de 24 usuarios")).toBeDefined();
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "Tipo de usuario" }));
+    await user.click(await screen.findByRole("option", { name: "Empresa" }));
+
+    await waitFor(() => {
+      expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith(
+        { page: 1, limit: 10, userType: "empresa", search: "" },
+        expect.any(AbortSignal),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+    expect(exportSpy).toHaveBeenCalledWith({ userType: "empresa", search: "" });
+  });
+
+  it("navega a la última página", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Página 3" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Usuario rechazado 24")).toBeDefined();
+    });
+    expect(screen.getByText("Mostrando 21-24 de 24 usuarios")).toBeDefined();
+  });
+
+  it("busca por correo después de dejar de escribir y vuelve a la primera página", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Página 2" }));
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 11-20 de 24 usuarios")).toBeDefined();
+    });
+
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByPlaceholderText("Buscar por correo electrónico"), {
+      target: { value: " juan.perez@ " },
+    });
+    expect(reportsService.getRejectedUsers).not.toHaveBeenCalledWith(expect.objectContaining({ search: "juan.perez@" }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299);
+    });
+    expect(reportsService.getRejectedUsers).not.toHaveBeenCalledWith(expect.objectContaining({ search: "juan.perez@" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 1-1 de 1 usuarios")).toBeDefined();
+    });
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith({ page: 1, limit: 10, search: "juan.perez@" }, expect.any(AbortSignal));
+  });
+
+  it("limpia la búsqueda con el botón de la x", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Buscar por correo electrónico");
+
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).toBeNull();
+    fireEvent.change(searchInput, { target: { value: "juan" } });
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+
+    expect(searchInput.value).toBe("");
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).toBeNull();
+  });
+
+  it.each(["noexiste@correo.com", "Juan Carlos", "201900000"])(
+    'muestra el aviso del correo cuando "%s" no encuentra usuarios',
+    async (searchTerm) => {
+      renderWithQuery(<RejectedUsersReportView />);
+
+      fireEvent.change(screen.getByPlaceholderText("Buscar por correo electrónico"), {
+        target: { value: searchTerm },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole("status").textContent).toBe("No se encontró ningún usuario con el correo");
+      });
+      expect(screen.queryByText(/^Mostrando/)).toBeNull();
+    },
+  );
+
+  it("vuelve a cargar los datos al presionar Actualizar", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+
+    let resolveRefresh: () => void = () => undefined;
+    vi.mocked(reportsService.getRejectedUsers).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = () => resolve(buildResponse(1, 10));
+        }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "actualizar" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: "actualizar" }).disabled).toBe(true);
+    });
+    resolveRefresh();
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+    expect(reportsService.getRejectedUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it("conserva el texto buscado al presionar Actualizar", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("juan.perez@", "Mostrando 1-1 de 1 usuarios");
+
+    fireEvent.click(screen.getByRole("button", { name: "actualizar" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 1-1 de 1 usuarios")).toBeDefined();
+    });
+    expect(getSearchInput().value).toBe("juan.perez@");
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith({ page: 1, limit: 10, search: "juan.perez@" }, expect.any(AbortSignal));
+  });
+
+  it("conserva el texto buscado al cambiar de página", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("usuario", "Mostrando 1-10 de 23 usuarios");
+
+    fireEvent.click(screen.getByRole("button", { name: "Página 2" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 11-20 de 23 usuarios")).toBeDefined();
+    });
+    expect(getSearchInput().value).toBe("usuario");
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith({ page: 2, limit: 10, search: "usuario", snapshotAt: expect.any(String) }, expect.any(AbortSignal));
+  });
+
+  it("se mantiene en la página actual si solo se agregan espacios al inicio o al final de la búsqueda", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("usuario", "Mostrando 1-10 de 23 usuarios");
+    fireEvent.click(screen.getByRole("button", { name: "Página 3" }));
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 21-23 de 23 usuarios")).toBeDefined();
+    });
+
+    vi.useFakeTimers();
+    fireEvent.change(getSearchInput(), { target: { value: " usuario " } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    vi.useRealTimers();
+
+    expect(screen.getByText("Mostrando 21-23 de 23 usuarios")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Página 3" }).getAttribute("aria-current")).toBe("page");
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith({ page: 3, limit: 10, search: "usuario", snapshotAt: expect.any(String) }, expect.any(AbortSignal));
+  });
+
+  it("oculta el contador y la paginación cuando la búsqueda no encuentra usuarios", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("fg", "No se encontró ningún usuario con el correo");
+
+    expect(screen.queryByText(/^Mostrando/)).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Paginación" })).toBeNull();
+  });
+
+  it("oculta la paginación cuando los resultados caben en una página", async () => {
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("juan.perez@", "Mostrando 1-1 de 1 usuarios");
+
+    expect(screen.queryByRole("navigation", { name: "Paginación" })).not.toBeInTheDocument();
+  });
+
+  it("al volver a entrar muestra la barra vacía y la lista completa", async () => {
+    const { unmount } = renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("juan.perez@", "Mostrando 1-1 de 1 usuarios");
+
+    unmount();
+    renderWithQuery(<RejectedUsersReportView />);
+
+    expect(getSearchInput().value).toBe("");
+    await waitFor(() => {
+      expect(screen.getByText("Mostrando 1-10 de 24 usuarios")).toBeDefined();
+    });
+    expect(reportsService.getRejectedUsers).toHaveBeenLastCalledWith({ page: 1, limit: 10, search: "" }, expect.any(AbortSignal));
+  });
+
+  it("muestra un mensaje cuando no hay usuarios rechazados", async () => {
+    vi.mocked(reportsService.getRejectedUsers).mockResolvedValueOnce({
+      statusCode: 200,
+      data: { items: [], totalItems: 0 },
+      detail: "Sin datos",
+      ok: true,
+    });
+
+    renderWithQuery(<RejectedUsersReportView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No hay usuarios rechazados.")).toBeDefined();
+    });
+    expect(screen.getByText("Mostrando 0-0 de 0 usuarios")).toBeDefined();
+    expect(screen.queryByRole("navigation", { name: "Paginación" })).toBeNull();
+  });
+
+  it("muestra un mensaje de error si falla la carga", async () => {
+    vi.mocked(reportsService.getRejectedUsers).mockRejectedValueOnce(new Error("Network error"));
+
+    renderWithQuery(<RejectedUsersReportView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No se pudo cargar el reporte de usuarios rechazados.")).toBeDefined();
+    });
+    expect(screen.queryByRole("navigation", { name: "Paginación" })).toBeNull();
+  });
+
+  it("exporta en CSV los rechazados de la búsqueda actual y descarga el archivo", async () => {
+    const file = new Blob(["Usuario"], { type: "text/csv" });
+    let resolveExport: (value: { file: Blob; fileName: string }) => void = () => undefined;
+    const exportSpy = vi.spyOn(reportsService, "exportRejectedUsersCsv").mockImplementationOnce(
+      () => new Promise((resolve) => (resolveExport = resolve)),
+    );
+    const downloadSpy = vi.spyOn(downloadFileModule, "downloadFile").mockImplementation(() => undefined);
+    renderWithQuery(<RejectedUsersReportView />);
+    await searchFor("juan", "Mostrando 1-1 de 1 usuarios");
+
+    fireEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+
+    const exportingButton = screen.getByRole("button", { name: "Exportando..." }) as HTMLButtonElement;
+    expect(exportingButton.disabled).toBe(true);
+    expect(exportSpy).toHaveBeenCalledWith({ search: "juan" });
+
+    resolveExport({ file, fileName: "usuarios-rechazados-2026-10-03.csv" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeDefined();
+    });
+    expect(downloadSpy).toHaveBeenCalledWith(file, "usuarios-rechazados-2026-10-03.csv");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("La exportación de la tabla ha sido un éxito")).toBeDefined();
+  });
+
+  it("muestra un mensaje si falla la exportación", async () => {
+    vi.spyOn(reportsService, "exportRejectedUsersCsv").mockRejectedValueOnce(new Error("Network error"));
+    const downloadSpy = vi.spyOn(downloadFileModule, "downloadFile");
+    const toastErrorSpy = vi.spyOn(toast, "error");
+    renderWithQuery(<RejectedUsersReportView />);
+    await waitFor(() => {
+      expect(screen.getByText("Juan Carlos Peres Rojas")).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+
+    await waitFor(() =>
+      expect(toastErrorSpy).toHaveBeenCalledWith("No se pudo exportar el reporte. Inténtalo de nuevo.", expect.any(Object)),
+    );
+    expect(downloadSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText("La exportación de la tabla ha sido un éxito")).toBeNull();
+  });
+});

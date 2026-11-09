@@ -16,7 +16,13 @@ describe("VacancyCard", () => {
   afterEach(() => cleanup());
 
   it("muestra los datos obligatorios de la vacante", () => {
-    renderCard({ offer: buildJobOffer({ applicantsCount: 12 }) });
+    renderCard({
+      offer: buildJobOffer({
+        applicantsCount: 12,
+        createdAt: "2026-09-01T14:00:00.000Z",
+        publishedAt: "2026-10-12T14:00:00.000Z",
+      }),
+    });
 
     expect(screen.getByRole("button", { name: "Desarrolladora Frontend" })).toBeInTheDocument();
     expect(screen.getByText(/Publicado: 12\/10\/2026/)).toBeInTheDocument();
@@ -41,12 +47,17 @@ describe("VacancyCard", () => {
     expect(screen.getByText(label)).toHaveClass(colorClass);
   });
 
-  it("en una vacante activa enlaza los postulantes sin exponer acciones de otras épicas", () => {
+  it("en una vacante activa mantiene ver postulantes, editar y eliminar", () => {
     renderCard({ offer: buildJobOffer({ id: "offer-9" }), showStatus: true });
 
     expect(screen.getByRole("link", { name: "Ver postulantes" })).toHaveAttribute("href", "/matching?vacancyId=offer-9");
-    expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Eliminar vacante/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute(
+      "href",
+      "/recruiters/job-offers/offer-9/edit",
+    );
+    expect(
+      screen.getByRole("button", { name: "Eliminar vacante Desarrolladora Frontend" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reabrir" })).not.toBeInTheDocument();
   });
 

@@ -1,0 +1,240 @@
+import { MAX_FILE_UPLOAD_SIZE_BYTES } from '../../../common/constants/file-upload.constants.js';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { RequestValidationException } from '../../../common/exceptions/request-validation.exception.js';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe.js';
+
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.js';
+import { Roles } from '../../../common/decorators/roles.decorator.js';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../../../common/guards/roles.guard.js';
+import type { AuthenticatedUser } from '../../../common/types/authenticated-user.types.js';
+import {
+  rejectAccessRequestSchema,
+  type RejectAccessRequestDto,
+} from '../requests/reject-access-request.schema.js';
+import {
+  listAccessRequestsQuerySchema,
+  type ListAccessRequestsQuery,
+} from '../requests/list-access-requests.schema.js';
+import { DocumentUploadInterceptor } from '../interceptors/document-upload.interceptor.js';
+import { AccessRequestsService } from '../services/access-requests.service.js';
+import {
+  createAccessRequestSchema,
+  type CreateAccessRequestDto,
+} from '../requests/create-access-request.schema.js';
+import {
+  attachDocumentSchema,
+  type AttachDocumentDto,
+} from '../requests/attach-document.schema.js';
+import type { UploadedDocumentFile } from '../types/uploaded-file.types.js';
+import {
+  requestStatusParamsSchema,
+  requestStatusQuerySchema,
+  type RequestStatusParams,
+  type RequestStatusQuery,
+} from '../requests/request-status.schema.js';
+import {
+  updateAccessRequestSchema,
+  type UpdateAccessRequestDto,
+} from '../requests/update-access-request.schema.js';
+import { BACKOFFICE_ROLE } from '../constants/backoffice.constants.js';
+import { REQUEST_STATUS_OK_RESPONSE } from '../constants/request-status-swagger.constants.js';
+
+interface DocumentResponse {
+  set: (headers: Record<string, string>) => unknown;
+  end: (body: Buffer) => unknown;
+}
+
+const uuidPipe = new ParseUUIDPipe({
+  exceptionFactory: () =>
+    new RequestValidationException([
+      { field: 'id', message: 'El identificador de la solicitud no es válido' },
+    ]),
+});
+
+@Controller('access-requests')
+export class AccessRequestsController {
+  constructor(private readonly accessRequestsService: AccessRequestsService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  list(
+    @Query(new ZodValidationPipe(listAccessRequestsQuerySchema))
+    query: ListAccessRequestsQuery,
+  ) {
+    return this.accessRequestsService.list(query);
+  }
+
+  @Get('summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  getSummary() {
+    return this.accessRequestsService.getSummary();
+  }
+
+  @Get('status/:code')
+  @ApiOperation({
+    summary: 'Consultar el estado de una solicitud de acceso',
+    description:
+      'Consulta por código y correo. El nombre completo se devuelve únicamente para solicitudes rechazadas. Si la combinación no coincide, se devuelve el mismo error genérico.',
+  })
+  @ApiParam({
+    name: 'code',
+    required: true,
+    description: 'Código de la solicitud de acceso.',
+    schema: {
+      type: 'string',
+      pattern: '^SOL-\\d{4}-\\d{4,}$',
+    },
+    example: 'SOL-2026-0001',
+  })
+  @ApiQuery({
+    name: 'email',
+    required: true,
+    description:
+      'Correo registrado en la solicitud. Se normaliza eliminando espacios externos y convirtiéndolo a minúsculas.',
+    schema: {
+      type: 'string',
+      format: 'email',
+    },
+    example: 'ana@example.com',
+  })
+  @ApiOkResponse(REQUEST_STATUS_OK_RESPONSE)
+  @ApiBadRequestResponse({
+    description: 'El código o el correo no cumplen el formato requerido.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'La solicitud de acceso no existe. Se utiliza el mismo error cuando el código no existe o el correo no coincide, sin revelar datos del solicitante.',
+  })
+  getStatus(
+    @Param(new ZodValidationPipe(requestStatusParamsSchema))
+    params: RequestStatusParams,
+    @Query(new ZodValidationPipe(requestStatusQuerySchema))
+    query: RequestStatusQuery,
+  ) {
+    return this.accessRequestsService.getStatus(params.code, query.email);
+  }
+
+  @Get(':id/document')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  async getDocument(
+    @Param('id', uuidPipe) id: string,
+    @Res() response: DocumentResponse,
+  ): Promise<void> {
+    const file = await this.accessRequestsService.getDocument(id);
+    response.set({
+      'Content-Type': file.mimeType,
+      'Content-Length': String(file.content.length),
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(`${file.name}.${file.extension}`)}`,
+    });
+    response.end(file.content);
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  getDetail(
+    @Param('id', uuidPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.accessRequestsService.getDetail(id, user.id);
+  }
+
+  @Patch(':id/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  approve(
+    @Param('id', uuidPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.accessRequestsService.approve(id, user.id);
+  }
+
+  @Patch(':id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(BACKOFFICE_ROLE)
+  reject(
+    @Param('id', uuidPipe) id: string,
+    @Body(new ZodValidationPipe(rejectAccessRequestSchema))
+    body: RejectAccessRequestDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.accessRequestsService.reject(id, user.id, body.reason);
+  }
+
+  @Post()
+  create(
+    @Body(new ZodValidationPipe(createAccessRequestSchema))
+    body: CreateAccessRequestDto,
+  ) {
+    return this.accessRequestsService.create(body);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', uuidPipe) id: string,
+    @Body(new ZodValidationPipe(updateAccessRequestSchema))
+    body: UpdateAccessRequestDto,
+  ) {
+    return this.accessRequestsService.update(id, body);
+  }
+
+  @Delete(':id')
+  delete(@Param('id', uuidPipe) id: string) {
+    return this.accessRequestsService.delete(id);
+  }
+
+  @Post(':id/document')
+  @UseInterceptors(
+    DocumentUploadInterceptor,
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_FILE_UPLOAD_SIZE_BYTES },
+    }),
+  )
+  attachDocument(
+    @Param('id', uuidPipe) id: string,
+    @UploadedFile() file: UploadedDocumentFile | undefined,
+    @Body(new ZodValidationPipe(attachDocumentSchema)) body: AttachDocumentDto,
+  ) {
+    return this.accessRequestsService.attachDocument(id, {
+      file,
+      documentType: body.documentType,
+    });
+  }
+
+  @Post(':id/submit')
+  submit(@Param('id', uuidPipe) id: string) {
+    return this.accessRequestsService.submit(id);
+  }
+
+  @Delete(':id/document')
+  removeDocument(@Param('id', uuidPipe) id: string) {
+    return this.accessRequestsService.removeDocument(id);
+  }
+}

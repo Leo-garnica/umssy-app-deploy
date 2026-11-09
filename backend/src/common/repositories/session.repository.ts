@@ -11,6 +11,23 @@ export class SessionRepository {
       select: {
         id: true,
         email: true,
+        company: { select: { id: true, title: true } },
+        roles: {
+          where: { deletedAt: null, startAt: { lte: new Date() } },
+          select: { role: { select: { name: true } } },
+        },
+      },
+    });
+  }
+
+  findUserById(id: string) {
+    return this.prisma.user.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        company: { select: { id: true, title: true } },
+        isActive: true,
         roles: {
           where: { deletedAt: null, startAt: { lte: new Date() } },
           select: { role: { select: { name: true } } },

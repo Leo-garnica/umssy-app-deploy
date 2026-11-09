@@ -1,0 +1,63 @@
+"use client";
+import type { MentorQueryFeedbackProps } from "../../types/mentor-query-feedback-props.types";
+
+import Link from "next/link";
+import { AlertCircle, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { Card, CardContent } from "@/components/ui/card";
+
+export function MentorQueryFeedback({
+  title,
+  description,
+  onRetry,
+  onClearFilters,
+  showDirectoryLink = false,
+}: MentorQueryFeedbackProps) {
+  const Icon = onRetry ? AlertCircle : Users;
+
+  return (
+    <Card
+      role={onRetry ? "alert" : "status"}
+      className="gap-0 overflow-visible rounded-xl border border-border bg-surface py-0 text-base ring-0"
+    >
+      <CardContent className="p-6 text-center sm:p-10">
+        <Icon
+          aria-hidden="true"
+          className="mx-auto mb-4 size-8 text-text-secondary"
+        />
+        <h2 className="text-xl font-semibold text-ink">{title}</h2>
+        <p className="mx-auto mt-2 max-w-lg text-sm text-text-secondary">
+          {description}
+        </p>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {onRetry && (
+            <Button type="button" onClick={onRetry} variant="outline">
+              Reintentar
+            </Button>
+          )}
+
+          {onClearFilters && (
+            <Button
+              type="button"
+              onClick={onClearFilters}
+              variant="outline"
+            >
+              Limpiar filtros
+            </Button>
+          )}
+
+          {showDirectoryLink && (
+            <Link
+              href="/mentorship/mentors"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Volver al directorio
+            </Link>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

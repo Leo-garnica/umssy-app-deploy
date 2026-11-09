@@ -3,66 +3,109 @@ import { House } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { RoleTag } from "@/shared/types/role-tag.types";
+import { ROLE_TAGS } from "@/shared/constants/roles.constants";
+import { SIDEBAR_NAVIGATION } from "@/shared/config/navigation.config";
 import { stubMatchMedia } from "@/shared/testing/stub-match-media";
 import type { AppSidebarProps } from "@/shared/types/app-sidebar-props.types";
 import { AppSidebar } from "./app-sidebar";
 
 const sessionRoles = vi.hoisted(() => ({ current: [] as readonly RoleTag[] }));
 vi.mock("@/shared/contexts/auth-context", () => ({ useAuth: () => ({ roles: sessionRoles.current, isLoading: false, refreshRoles: vi.fn() }) }));
-const route = vi.hoisted(() => ({ pathname: "/profile" }));
+const route = vi.hoisted(() => ({ pathname: "/dashboard" }));
 vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
 function renderSidebar(props: AppSidebarProps = {}) { return render(<SidebarProvider><AppSidebar {...props} /></SidebarProvider>); }
 
 describe("AppSidebar", () => {
-  beforeEach(() => { route.pathname = "/profile"; sessionRoles.current = ["titulado"]; stubMatchMedia(); });
+  beforeEach(() => { route.pathname = "/dashboard"; sessionRoles.current = ROLE_TAGS; stubMatchMedia(); });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-
   it("uses the original logo without inventing a user", () => {
     renderSidebar();
     expect(screen.getByRole("img", { name: "UMSSY, Acreditación y comunidad" })).toHaveAttribute("src", "/icons/umssy-logo-web.svg");
     expect(document.querySelector('[data-slot="sidebar-footer"]')).toBeNull();
   });
-
-  it("links to the published profile, radar and vacancy pages for graduates", () => {
-    route.pathname = "/dashboard";
+  it("exposes subsections in each expandable task group", () => {
     renderSidebar();
-    fireEvent.click(screen.getByRole("button", { name: "Mi perfil" }));
-    const navigation = screen.getByRole("navigation", { name: "Menú principal" });
-    const hrefs = within(navigation).getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/dashboard", "/profile", "/profile/settings", "/profile/documents", "/profile/radar", "/vacancies"]);
+    fireEvent.click(screen.getByRole("button", { name: "Mentorías" }));
+    expect(screen.getByRole("link", { name: "Mi disponibilidad" })).toHaveAttribute("href", "/mentor/availability");
+    fireEvent.click(screen.getByRole("button", { name: "Talleres y eventos" }));
+    expect(screen.getByRole("link", { name: "Mis inscripciones" })).toHaveAttribute("href", "/events/my-passes");
   });
-
   it.each([
-    ["/profile/settings", "Configuración del perfil"],
-    ["/profile/documents", "Documentos y CV"],
-  ])("opens the profile group and marks only the current destination for %s", (pathname, destination) => {
+    ["/events/my-passes", "Talleres y eventos", "Mis inscripciones"],
+    ["/mentor/availability", "Mentorías", "Mi disponibilidad"],
+    ["/mentorship/orientation", "Mentorías", "Tipos de orientación"],
+    ["/appointments", "Mentorías", "Mis citas"],
+    ["/backoffice/reports/history", "Reportes", "Historial de reportes"],
+    ["/profile/settings", "Mi perfil", "Configuración del perfil"],
+    ["/vacancies", "Vacantes", "Todas las vacantes"],
+    ["/vacancies/recommended", "Vacantes", "Vacantes para ti"],
+    ["/vacancies/recommended/example-id", "Vacantes", "Vacantes para ti"],
+    ["/backoffice/surveys/create", "Encuestas", "Crear encuesta"],
+  ])("opens the current group and marks only the current destination for %s", (pathname, group, destination) => {
     route.pathname = pathname; renderSidebar();
-    expect(screen.getByRole("button", { name: "Mi perfil" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: group })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: destination })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Menú principal" }).querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });
-
+  it.each([["mentor"], ["titulado"]] as const)("shows the appointments link to %s", (role) => {
+    sessionRoles.current = [role]; renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: "Mentorías" }));
+    expect(screen.getByRole("link", { name: "Mis citas" })).toHaveAttribute("href", "/appointments");
+  });
+  it.each([["empresa"], ["administrativo"]] as const)("hides the appointments link from %s", (role) => {
+    sessionRoles.current = [role]; renderSidebar();
+    expect(screen.queryByRole("link", { name: "Mis citas" })).toBeNull();
+  });
+  it.each([["titulado"], ["estudiante"]] as const)("shows the three vacancy links to %s", (role) => {
+    sessionRoles.current = [role]; renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: "Vacantes" }));
+    expect(screen.getByRole("link", { name: "Todas las vacantes" })).toHaveAttribute("href", "/vacancies");
+    expect(screen.getByRole("link", { name: "Vacantes para ti" })).toHaveAttribute("href", "/vacancies/recommended");
+    expect(screen.getByRole("link", { name: "Mis postulaciones" })).toHaveAttribute("href", "/vacancies/my-applications");
+  });
+  it("shows only all vacancies to the mentor", () => {
+    sessionRoles.current = ["mentor"]; renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: "Vacantes" }));
+    expect(screen.getByRole("link", { name: "Todas las vacantes" })).toHaveAttribute("href", "/vacancies");
+    expect(screen.queryByRole("link", { name: "Vacantes para ti" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Mis postulaciones" })).toBeNull();
+  });
+  it.each([["empresa"], ["administrativo"]] as const)("hides the vacancies group from %s", (role) => {
+    sessionRoles.current = [role]; renderSidebar();
+    expect(screen.queryByRole("button", { name: "Vacantes" })).toBeNull();
+  });
+  it("keeps the group open for detail routes without selecting an unrelated destination", () => {
+    route.pathname = "/mentors/example-id/availability"; renderSidebar();
+    expect(screen.getByRole("button", { name: "Mentorías" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("link", { current: "page" })).toBeNull();
+  });
   it("renders each authorized top-level entry", () => {
     renderSidebar();
     const navigation = screen.getByRole("navigation", { name: "Menú principal" });
     const top = within(navigation).getAllByRole("listitem").filter((item) => item.getAttribute("data-slot") === "sidebar-menu-item");
-    expect(top).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Mi perfil" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Vacantes" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Mi empresa" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Revisión de radares" })).not.toBeInTheDocument();
+    expect(top).toHaveLength(SIDEBAR_NAVIGATION.length);
   });
-
   it("renders the items and user received by props", () => {
     route.pathname = "/home";
     renderSidebar({ items: [{ label: "Inicio", icon: House, href: "/home" }], user: { fullName: "María Pérez", role: "Egresada" } });
     expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("María Pérez")).toBeInTheDocument();
   });
-
-  it("hides the profile group for roles without access to the profile", () => {
+  it("filters each child using all roles and reacts when roles change", () => {
+    sessionRoles.current = ["titulado"]; const view = renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: "Mentorías" }));
+    expect(screen.getByRole("link", { name: "Mi participación" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Mi disponibilidad" })).toBeNull();
+    sessionRoles.current = ["titulado", "mentor"];
+    view.rerender(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(screen.getAllByRole("link", { name: "Mi disponibilidad" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Reportes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Encuestas" })).toBeNull();
     sessionRoles.current = ["administrativo"];
-    renderSidebar();
-    expect(screen.queryByRole("button", { name: "Mi perfil" })).toBeNull();
+    view.rerender(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(screen.getByRole("button", { name: "Reportes" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Encuestas" }));
+    expect(screen.getByRole("link", { name: "Encuestas" })).toHaveAttribute("href", "/backoffice/surveys");
+    expect(screen.queryByRole("button", { name: "Mentorías" })).toBeNull();
   });
 });

@@ -1,0 +1,25 @@
+'use client';
+
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import type { EventsSearchInputProps } from '../types/events-search-input-props.types';
+
+export function EventsSearchInput({ value, onChange }: EventsSearchInputProps) {
+  return (
+    <div className="relative w-full sm:w-64">
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-text-secondary"
+      />
+      <Input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value.slice(0, 50))}
+        placeholder="Buscar taller..."
+        aria-label="Buscar taller"
+        maxLength={50}
+        className="h-10 rounded-full bg-surface pl-10 shadow-2xs"
+      />
+    </div>
+  );
+}

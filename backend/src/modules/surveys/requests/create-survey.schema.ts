@@ -1,0 +1,139 @@
+import { z } from 'zod';
+import {
+  SURVEY_ACADEMIC_PERIOD_PATTERN,
+  SURVEY_ALL_CAREERS,
+  SURVEY_VALIDATION_MESSAGES as MESSAGES,
+} from '../constants/survey.constants.js';
+import {
+  SURVEY_QUESTION_TYPES,
+  SURVEY_STATUSES,
+  SURVEY_TARGET_AUDIENCES,
+} from '../types/survey.enum.js';
+import { findDuplicatedLabels } from '../utils/find-duplicated-labels.js';
+
+const optionSchema = z.object({
+  label: z
+    .string({ message: MESSAGES.OPTION_REQUIRED })
+    .trim()
+    .min(1, MESSAGES.OPTION_REQUIRED)
+    .max(100, MESSAGES.OPTION_TOO_LONG),
+});
+
+const questionSchema = z.object({
+  statement: z
+    .string({ message: MESSAGES.STATEMENT_REQUIRED })
+    .trim()
+    .max(250, MESSAGES.STATEMENT_TOO_LONG),
+  type: z.enum(SURVEY_QUESTION_TYPES, {
+    message: MESSAGES.INVALID_QUESTION_TYPE,
+  }),
+  isRequired: z.boolean().default(true),
+  options: z.array(optionSchema).default([]),
+});
+
+const optionalText = <TSchema extends z.ZodType<string>>(schema: TSchema) =>
+  z
+    .union([schema, z.literal(''), z.null()])
+    .optional()
+    .transform((value) => (value ? value : undefined));
+
+const dateSchema = z.iso.datetime({
+  offset: true,
+  message: MESSAGES.INVALID_DATE,
+});
+
+export const createSurveySchema = z
+  .object({
+    title: z
+      .string({ message: MESSAGES.TITLE_REQUIRED })
+      .trim()
+      .min(5, MESSAGES.TITLE_TOO_SHORT)
+      .max(150, MESSAGES.TITLE_TOO_LONG),
+    description: z
+      .string()
+      .trim()
+      .max(500, MESSAGES.DESCRIPTION_TOO_LONG)
+      .nullish()
+      .transform((value) => (value ? value : undefined)),
+    careerId: optionalText(
+      z
+        .string()
+        .refine(
+          (value) =>
+            value === SURVEY_ALL_CAREERS || z.uuid().safeParse(value).success,
+          MESSAGES.INVALID_CAREER_ID,
+        ),
+    ),
+    academicPeriod: optionalText(
+      z
+        .string()
+        .trim()
+        .regex(
+          SURVEY_ACADEMIC_PERIOD_PATTERN,
+          MESSAGES.INVALID_ACADEMIC_PERIOD,
+        ),
+    ),
+    targetAudience: z
+      .enum(SURVEY_TARGET_AUDIENCES, {
+        message: MESSAGES.INVALID_TARGET_AUDIENCE,
+      })
+      .nullish()
+      .transform((value) => value ?? undefined)
+      .optional(),
+    opensAt: optionalText(dateSchema),
+    closesAt: optionalText(dateSchema),
+    status: z.enum(SURVEY_STATUSES, { message: MESSAGES.INVALID_STATUS }),
+    questions: z.array(questionSchema).default([]),
+  })
+  .superRefine((survey, ctx) => {
+    if (survey.status !== 'published') return;
+
+    const requiredFields = [
+      ['careerId', MESSAGES.CAREER_REQUIRED],
+      ['academicPeriod', MESSAGES.ACADEMIC_PERIOD_REQUIRED],
+      ['targetAudience', MESSAGES.TARGET_AUDIENCE_REQUIRED],
+      ['opensAt', MESSAGES.OPENS_AT_REQUIRED],
+      ['closesAt', MESSAGES.CLOSES_AT_REQUIRED],
+    ] as const;
+
+    for (const [field, message] of requiredFields) {
+      if (!survey[field]) {
+        ctx.addIssue({ code: 'custom', path: [field], message });
+      }
+    }
+
+    if (survey.questions.length < 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['questions'],
+        message: MESSAGES.QUESTIONS_REQUIRED,
+      });
+    }
+
+    survey.questions.forEach((question, index) => {
+      if (!question.statement) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'statement'],
+          message: MESSAGES.STATEMENT_REQUIRED,
+        });
+      }
+
+      const labels = question.options.map(({ label }) => label);
+      if (labels.length < 2) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'options'],
+          message: MESSAGES.OPTIONS_TOO_FEW,
+        });
+      } else if (findDuplicatedLabels(labels).length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'options'],
+          message: MESSAGES.OPTIONS_DUPLICATED,
+        });
+      }
+    });
+  });
+
+export type CreateSurveyRequest = z.infer<typeof createSurveySchema>;

@@ -1,0 +1,66 @@
+import { renderWithQuery as render } from "@/shared/testing/render-with-query";
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+
+import { EventsSearchInput } from './events-search-input';
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('EventsSearchInput', () => {
+  it('recorta entradas extensas incluso cuando el cambio supera maxLength', () => {
+    const onChange = vi.fn();
+    render(<EventsSearchInput value="" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'a'.repeat(70) },
+    });
+    expect(onChange).toHaveBeenCalledWith('a'.repeat(50));
+  });
+
+  it('muestra el valor y el placeholder correctamente', () => {
+    render(
+      <EventsSearchInput
+        value="React"
+        onChange={() => {}}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText('Buscar taller...');
+
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveValue('React');
+  });
+
+  it('llama a onChange cuando el usuario escribe', () => {
+    const handleChange = vi.fn();
+
+    render(
+      <EventsSearchInput
+        value=""
+        onChange={handleChange}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText('Buscar taller...');
+
+    fireEvent.change(input, {
+      target: { value: 'Data Science' },
+    });
+
+    expect(handleChange).toHaveBeenCalledWith('Data Science');
+  });
+
+  it('limita el buscador a 50 caracteres', () => {
+    render(
+      <EventsSearchInput
+        value=""
+        onChange={() => {}}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText('Buscar taller...');
+
+    expect(input).toHaveAttribute('maxlength', '50');
+  });
+});

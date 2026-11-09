@@ -1,18 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.resetModules();
-});
+describe('ENV_CONFIG', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
 
-describe("API configuration", () => {
-  it.each([
-    ["https://backend.example", "https://backend.example/api"],
-    ["https://backend.example/api/", "https://backend.example/api"],
-  ])("normalizes %s without duplicating the API prefix", async (url, expected) => {
-    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "prod");
-    vi.stubEnv("NEXT_PUBLIC_API_URL_PROD", url);
-    const { ENV_CONFIG } = await import("./env.config");
-    expect(ENV_CONFIG.apiUrl).toBe(expected);
+  it('usa NEXT_PUBLIC_API_URL_LOCAL cuando el entorno es local', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'local');
+    vi.stubEnv('NEXT_PUBLIC_API_URL_LOCAL', 'http://localhost:8080/api');
+
+    const { ENV_CONFIG } = await import('./env.config');
+
+    expect(ENV_CONFIG.apiUrl).toBe('http://localhost:8080/api');
+  });
+
+  it('lanza un error si falta la variable del entorno activo', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'dev');
+    vi.stubEnv('NEXT_PUBLIC_API_URL_DEV', '');
+
+    await expect(import('./env.config')).rejects.toThrow();
   });
 });

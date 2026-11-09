@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
 import "./globals.css";
+import { RegisterServiceWorker } from "./register-service-worker";
 import { Providers } from "./providers";
 
 const inter = Inter({
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="flex min-h-full flex-col">
         <Providers>
+          <RegisterServiceWorker />
           {children}
         </Providers>
       </body>

@@ -1,24 +1,29 @@
+import "@/shared/testing/indexed-db.mock";
+import "@/modules/job-offers/testing/current-company.mock";
 import { AxiosError } from "axios";
+import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAccessToken, saveAccessToken } from "@/shared/services/storage/access-token-storage";
 import { createQueryWrapper } from "@/shared/testing/create-query-wrapper";
+import { JOB_OFFERS_QUERY_KEYS } from "../constants/job-offers-query-keys.constants";
 import { jobOffersService } from "../services/job-offers.service";
 import { buildSessionToken, COMPANY_ID, EMPTY_CONDITIONS, VALID_CONDITIONS } from "../testing/vacancy-fixtures";
 import { toJobOfferPayload } from "../utils/to-job-offer-payload";
 import { usePublishJobOffer } from "./use-publish-job-offer";
 
-vi.mock("../services/job-offers.service", () => ({ jobOffersService: { publish: vi.fn() } }));
+vi.mock("../services/job-offers.service", () => ({ jobOffersService: { publish: vi.fn(), update: vi.fn() } }));
 
 const CREATED = { id: "1", createdAt: "2026-10-12T00:00:00.000Z" };
 
-function renderPublishHook(companyId: string | null = COMPANY_ID) {
-  return renderHook(() => usePublishJobOffer(companyId), createQueryWrapper());
+function renderPublishHook() {
+  return renderHook(() => usePublishJobOffer(), createQueryWrapper());
 }
 
 describe("usePublishJobOffer", () => {
-  beforeEach(() => {
-    saveAccessToken(buildSessionToken("empresa"));
+  beforeEach(async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_COMPANY_ID", COMPANY_ID);
+    await saveAccessToken(buildSessionToken("empresa"));
   });
 
   afterEach(() => {
@@ -28,7 +33,7 @@ describe("usePublishJobOffer", () => {
     clearAccessToken();
   });
 
-  it("publica con la empresa seleccionada y el payload del backend", async () => {
+  it("publica con la empresa configurada y el payload del backend", async () => {
     vi.mocked(jobOffersService.publish).mockResolvedValue(CREATED);
     const { result } = renderPublishHook();
 
@@ -49,6 +54,22 @@ describe("usePublishJobOffer", () => {
     await waitFor(() => expect(result.current.status).toBe("error"));
     expect(result.current.isSubmitting).toBe(false);
     expect(result.current.error?.kind).toBe("network");
+  });
+
+  it("sin conexión muestra el error de red en lugar de quedar en espera", async () => {
+    onlineManager.setOnline(false);
+    vi.mocked(jobOffersService.publish).mockRejectedValue(new AxiosError("Network Error", "ERR_NETWORK"));
+    const { result } = renderPublishHook();
+
+    try {
+      await act(() => result.current.submit(VALID_CONDITIONS));
+
+      await waitFor(() => expect(result.current.status).toBe("error"));
+      expect(jobOffersService.publish).toHaveBeenCalledTimes(1);
+      expect(result.current.error?.kind).toBe("network");
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it("marca el envío en curso y no repite la petición mientras tanto", async () => {
@@ -81,8 +102,8 @@ describe("usePublishJobOffer", () => {
   });
 
   it("no llama al backend si no hay empresa asociada a la sesión", async () => {
-    saveAccessToken(buildSessionToken("titulado"));
-    const { result } = renderPublishHook(null);
+    await saveAccessToken(buildSessionToken("titulado"));
+    const { result } = renderPublishHook();
 
     await act(() => result.current.submit(VALID_CONDITIONS));
 
@@ -100,5 +121,18 @@ describe("usePublishJobOffer", () => {
 
     await waitFor(() => expect(result.current.status).toBe("idle"));
     expect(result.current.error).toBeNull();
+  });
+
+  it("en edición actualiza la vacante de la empresa e invalida su listado y detalles", async () => {
+    vi.mocked(jobOffersService.update).mockResolvedValue({ id: "offer-1" } as never);
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    const { result } = renderHook(() => usePublishJobOffer("offer-1"), createQueryWrapper());
+
+    await act(() => result.current.submit(VALID_CONDITIONS));
+
+    expect(jobOffersService.update).toHaveBeenCalledWith(COMPANY_ID, "offer-1", toJobOfferPayload(VALID_CONDITIONS));
+    expect(jobOffersService.publish).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: JOB_OFFERS_QUERY_KEYS.company(COMPANY_ID) });
   });
 });

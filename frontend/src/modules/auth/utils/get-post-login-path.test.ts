@@ -3,7 +3,7 @@ import { getPostLoginPath } from "./get-post-login-path";
 
 describe("getPostLoginPath", () => {
   it("el rol administrativo va al backoffice", () => {
-    expect(getPostLoginPath("administrativo")).toBe("/affinity-radar/review-queue");
+    expect(getPostLoginPath("administrativo")).toBe("/backoffice/solicitudes");
   });
 
   it("envía las empresas a su portal", () => {

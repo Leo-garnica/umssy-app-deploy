@@ -1,4 +1,2 @@
-import { UnavailableSectionView } from "@/modules/home/views/unavailable-section-view";
-export default function WorkshopsPage() {
-  return <UnavailableSectionView title="Talleres de la comunidad" />;
-}
+import { PublicWorkshopsView } from "@/modules/events";
+export default function WorkshopsPage() { return <PublicWorkshopsView />; }

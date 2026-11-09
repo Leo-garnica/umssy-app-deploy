@@ -10,6 +10,7 @@ import type { NavigationItem } from "@/shared/types/navigation-item.types";
 import { AppSidebar } from "./app-sidebar";
 import { SessionUserCard } from "@/modules/auth";
 import { getAccessToken } from "@/shared/services/storage/access-token-storage";
+import { ChatDock, MessagingUiProvider } from "@/modules/chat";
 import { AppHeader } from "./app-header";
 
 export function AppShell({
@@ -27,6 +28,7 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   return (
+    <MessagingUiProvider>
     <SidebarProvider
       data-app-shell="true"
       className={cn("flex-col bg-background", contentClassName && "h-dvh min-h-0 overflow-hidden")}
@@ -41,36 +43,38 @@ export function AppShell({
     >
       {header ?? <AppHeader brand={brand} />}
       <div className="flex min-h-0 min-w-0 flex-1">
-        <AppSidebar
-          showBrand={Boolean(header)}
-          items={items as NavigationItem[] | undefined}
-          user={user}
-          brand={brand}
-          footer={
-            sidebarFooter ??
-            (!user && getAccessToken() ? <SessionUserCard /> : undefined)
-          }
-          itemClassName={sidebarItemClassName}
-          itemBadges={sidebarItemBadges}
-        />
-        <SidebarInset
+      <AppSidebar
+        showBrand={Boolean(header)}
+        items={items as NavigationItem[] | undefined}
+        user={user}
+        brand={brand}
+        footer={
+          sidebarFooter ??
+          (!user && getAccessToken() ? <SessionUserCard /> : undefined)
+        }
+        itemClassName={sidebarItemClassName}
+        itemBadges={sidebarItemBadges}
+      />
+      <SidebarInset
+        className={cn(
+          "min-h-0 min-w-0 bg-background",
+          contentClassName && "overflow-hidden",
+        )}
+      >
+        <div
+          key={pathname}
           className={cn(
-            "min-h-0 min-w-0 bg-background",
-            contentClassName && "overflow-hidden",
+            "flex-1 animate-in duration-200 ease-out fade-in",
+            contentClassName ??
+              (fullBleed ? "flex min-w-0 flex-col" : "px-4 py-6 sm:px-6 lg:px-12 lg:py-10"),
           )}
         >
-          <div
-            key={pathname}
-            className={cn(
-              "flex-1 animate-in duration-200 ease-out fade-in",
-              contentClassName ??
-                (fullBleed ? "flex min-w-0 flex-col" : "px-4 py-6 sm:px-6 lg:px-12 lg:py-10"),
-            )}
-          >
-            {children}
-          </div>
-        </SidebarInset>
+          {children}
+        </div>
+      </SidebarInset>
+      <ChatDock />
       </div>
     </SidebarProvider>
+    </MessagingUiProvider>
   );
 }

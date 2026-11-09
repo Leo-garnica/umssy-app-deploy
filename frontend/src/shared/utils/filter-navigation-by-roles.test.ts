@@ -1,51 +1,64 @@
-import { House, UserRound } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { SIDEBAR_NAVIGATION } from "@/shared/config/navigation.config";
-import type { NavigationItem } from "@/shared/types/navigation-item.types";
 import { filterNavigationByRoles } from "./filter-navigation-by-roles";
 
-const ITEMS: NavigationItem[] = [
-  { label: "Inicio", icon: House, href: "/dashboard" },
-  { label: "Solicitudes", icon: House, href: "/backoffice", roles: ["administrativo"] },
-  {
-    label: "Mi perfil",
-    icon: UserRound,
-    children: [
-      { label: "Resumen", href: "/profile", roles: ["titulado", "mentor"] },
-      { label: "Disponibilidad", href: "/mentor/availability", roles: ["mentor"] },
-    ],
-  },
-];
-
-const labels = (items: NavigationItem[]) =>
-  items.map((item) => [item.label, ...(item.children ?? []).map((child) => child.label)].join(" > "));
+function getPaths(roles: Parameters<typeof filterNavigationByRoles>[1]) {
+  return filterNavigationByRoles(SIDEBAR_NAVIGATION, roles).flatMap((item) =>
+    item.children ? item.children.map((child) => child.href) : [item.href],
+  );
+}
 
 describe("Role navigation", () => {
-  it("keeps open items and the children allowed for the role", () => {
-    expect(labels(filterNavigationByRoles(ITEMS, ["titulado"]))).toEqual(["Inicio", "Mi perfil > Resumen"]);
+  it("gives graduates the participation entry without mentor-only availability", () => {
+    const paths = getPaths(["titulado"]);
+    expect(paths).toContain("/mentorship/mentors");
+    expect(paths).not.toContain("/mentor/availability");
+    expect(paths).not.toContain("/backoffice/solicitudes");
+    expect(paths).not.toContain("/recruiters");
   });
 
-  it("combines roles without duplicating entries", () => {
-    expect(labels(filterNavigationByRoles(ITEMS, ["titulado", "mentor"]))).toEqual([
-      "Inicio",
-      "Mi perfil > Resumen > Disponibilidad",
-    ]);
+  it("combines graduate and mentor functions without duplicate entries", () => {
+    const paths = getPaths(["titulado", "mentor"]);
+    expect(paths).toContain("/mentorship/mentors");
+    expect(paths).toContain("/vacancies");
+    expect(paths.filter((path) => path === "/chat")).toHaveLength(1);
+    expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it("hides restricted items and empty groups", () => {
-    expect(labels(filterNavigationByRoles(ITEMS, ["administrativo"]))).toEqual(["Inicio", "Solicitudes"]);
-    expect(labels(filterNavigationByRoles(ITEMS, []))).toEqual(["Inicio"]);
+  it("exposes recruiter functions only to company accounts", () => {
+    const paths = getPaths(["empresa"]);
+    expect(paths).toContain("/chat");
+    expect(paths).toContain("/recruiters");
+    expect(paths).toContain("/matching");
+    expect(paths).toContain("/profile");
+    expect(paths).not.toContain("/profile/radar");
+    expect(paths).not.toContain("/mentor/availability");
+    expect(paths).not.toContain("/backoffice/solicitudes");
   });
 
-  it("shows the profile pages of this deploy to a graduate", () => {
-    expect(labels(filterNavigationByRoles(SIDEBAR_NAVIGATION, ["titulado"]))).toEqual([
-      "Inicio",
-      "Mi perfil > Resumen > Configuración del perfil > Documentos y CV > Radar de afinidad",
-      "Vacantes",
-    ]);
+  it("combines administrative and mentor functions", () => {
+    const paths = getPaths(["administrativo", "mentor"]);
+    expect(paths).toContain("/backoffice/solicitudes");
+    expect(paths).toContain("/backoffice/reports/registered-users");
+    expect(paths).toContain("/mentorship/mentors");
+    expect(paths).toContain("/chat");
   });
 
-  it("shows only radar review to an administrative account", () => {
-    expect(labels(filterNavigationByRoles(SIDEBAR_NAVIGATION, ["administrativo"]))).toEqual(["Inicio", "Revisión de radares"]);
+  it("hides chat from accounts with only the administrative role", () => {
+    const paths = getPaths(["administrativo"]);
+    expect(paths).not.toContain("/chat");
+    expect(paths).not.toContain("/profile");
+    expect(paths).toContain("/affinity-radar/review-queue");
+    expect(paths).toContain("/backoffice/surveys");
+  });
+
+  it("hides empty groups from students and users without roles", () => {
+    const paths = getPaths(["estudiante"]);
+    expect(paths).toContain("/mentorship/mentors");
+    expect(paths).not.toContain("/mentors/participation");
+    expect(paths).not.toContain("/mentor/availability");
+    expect(paths).toContain("/chat");
+    expect(paths).not.toContain("/events");
+    expect(filterNavigationByRoles(SIDEBAR_NAVIGATION, [])).toEqual([]);
   });
 });

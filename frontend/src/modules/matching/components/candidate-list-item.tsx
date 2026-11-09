@@ -1,15 +1,9 @@
 "use client";
+import type { CandidateListItemProps } from "../types/candidate-list-item-props.types";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/shared/utils/get-initials";
-import type { CandidateWithMatch } from "../types/matching-types";
-
-interface CandidateListItemProps {
-  candidate: CandidateWithMatch;
-  selected: boolean;
-  onSelect: (id: string) => void;
-}
 
 export function CandidateListItem({ candidate, selected, onSelect }: CandidateListItemProps) {
   const isDiscarded = candidate.status === "discarded";
@@ -34,7 +28,7 @@ export function CandidateListItem({ candidate, selected, onSelect }: CandidateLi
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-medium text-foreground">{candidate.name}</p>
             <span className="shrink-0 text-sm font-semibold text-foreground">
-              {candidate.hasRadar === false ? "Sin radar" : `${candidate.matchPercent}%`}
+              {candidate.matchPercent}%
             </span>
           </div>
           <p className="truncate text-xs text-muted-foreground">{candidate.role}</p>

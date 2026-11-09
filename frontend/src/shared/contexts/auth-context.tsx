@@ -1,31 +1,72 @@
 "use client";
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
-import { getSessionRoles } from "@/modules/auth/utils/get-session-roles";
-import { getAccessToken, subscribeAccessToken } from "@/shared/services/storage/access-token-storage";
+import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { isApiError } from "@/shared/services/api-client";
+import { authService, endSession, getSessionRoles } from "@/modules/auth";
+import {
+  getAccessToken,
+  subscribeAccessToken,
+  isAccessTokenReady,
+} from "@/shared/services/storage/access-token-storage";
 import type { AuthContextValue } from "@/shared/types/auth-context-value.types";
 import type { AuthProviderProps } from "@/shared/types/auth-provider-props.types";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const getServerToken = () => null;
-const refreshRoles = async () => {};
-
-// This deploy has no session endpoint, so the roles come from the token issued at login.
-function useTokenRoles(): AuthContextValue {
-  const accessToken = useSyncExternalStore(subscribeAccessToken, getAccessToken, getServerToken);
-  return useMemo(
-    () => ({ roles: getSessionRoles(accessToken), isLoading: false, refreshRoles }),
-    [accessToken],
-  );
-}
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const value = useTokenRoles();
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const accessToken = useSyncExternalStore(subscribeAccessToken, getAccessToken, getServerToken);
+  const isStorageReady = useSyncExternalStore(
+    subscribeAccessToken,
+    isAccessTokenReady,
+    () => false,
+  );
+  const session = useQuery({
+    queryKey: ["auth-session", accessToken],
+    queryFn: () => authService.getSession(accessToken),
+    enabled: Boolean(accessToken),
+    retry: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (isApiError(session.error) && session.error.response?.status === 401) endSession();
+  }, [session.error]);
+
+  async function refreshRoles() {
+    if (!accessToken) return;
+    await session.refetch();
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
+        company: accessToken ? (session.data?.company ?? null) : null,
+        currentUserId: accessToken ? (session.data?.id ?? null) : null,
+        roles: accessToken
+          ? (session.data?.roles ?? getSessionRoles(accessToken))
+          : [],
+        isLoading:
+          !isStorageReady || (Boolean(accessToken) && session.isPending),
+        refreshRoles,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  const tokenRoles = useTokenRoles();
-  return context ?? tokenRoles;
+  const accessToken = useSyncExternalStore(subscribeAccessToken, getAccessToken, getServerToken);
+  return (
+    context ?? {
+      currentUserId: null,
+      roles: getSessionRoles(accessToken),
+      isLoading: false,
+      refreshRoles: async () => {},
+    }
+  );
 }

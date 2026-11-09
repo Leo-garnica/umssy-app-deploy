@@ -1,5 +1,7 @@
 "use client";
 
+import { MAX_SCORE } from "@/modules/radar-chart/constants/radar-score.constants";
+
 import { useId, useState } from "react";
 import {
   PolarAngleAxis,
@@ -16,7 +18,6 @@ import { AffinityRadarAxisTick } from "./affinity-radar-axis-tick";
 import { AffinityRadarDot } from "./affinity-radar-dot";
 import { RadarCard } from "./radar-card";
 
-const MAX_SCORE = 10;
 const LEVEL_TICK_COUNT = 6;
 const SERIES_LABEL = "Puntaje de afinidad del perfil";
 
@@ -87,7 +88,6 @@ export function AffinityRadarChart({
                   stroke="var(--color-accent)"
                   strokeWidth={2}
                   isAnimationActive={false}
-                  activeDot={false}
                   fill="var(--color-accent)"
                   fillOpacity={0.14}
                   dot={({ cx, cy, index }) => (

@@ -15,9 +15,9 @@ describe("Task dashboard", () => {
   });
   it("combines graduate and mentor tasks without duplicating them", () => {
     state.roles = ["titulado", "mentor"]; render(<DashboardView />);
-    expect(screen.getAllByRole("link", { name: "Documentos y CV" })).toHaveLength(1);
-    expect(screen.queryByRole("link", { name: "Mi disponibilidad" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Mi participación" })).toBeNull();
+    expect(screen.getAllByRole("link", { name: "Mi disponibilidad" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Mi disponibilidad" })).toHaveAttribute("href", "/mentor/availability");
+    expect(screen.getByRole("link", { name: "Mi participación" })).toBeInTheDocument();
   });
   it("offers company tasks without exposing administrative tasks", () => {
     state.roles = ["empresa"]; render(<DashboardView />);

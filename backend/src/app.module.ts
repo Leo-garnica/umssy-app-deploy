@@ -1,32 +1,51 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { MailModule } from './modules/mail/index.js';
+import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
-import { ConfigModule } from '@nestjs/config';
 import { DomainExceptionFilter } from './common/filters/domain-exception.filter.js';
-import { AvailabilityModule } from './modules/availability/availability.module.js';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
+import { AvailabilityModule } from './modules/availability/availability.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
-import { ProfileModule } from './modules/profile/profile.module.js';
+import { EventRegistrationsModule } from './modules/event-registrations/event-registrations.module.js';
+import { EventCategoriesModule } from './modules/event-categories/event-categories.module.js';
+import { EventsModule } from './modules/events/events.module.js';
 import { CertificationDocumentsModule } from './modules/certification-documents/certification-documents.module.js';
 import { CertificationsModule } from './modules/certifications/certifications.module.js';
 import { CvModule } from './modules/cv/cv.module.js';
 import { EducationsModule } from './modules/educations/educations.module.js';
+import { MentorsModule } from './modules/mentors/mentors.module.js';
+import { OrientationTypesModule } from './modules/orientation-types/orientation-types.module.js';
+import { ProfileModule } from './modules/profile/profile.module.js';
 import { SkillsModule } from './modules/skills/skills.module.js';
+import { TechnicalAreasModule } from './modules/technical-areas/technical-areas.module.js';
 import { WorkExperienceModule } from './modules/work-experience/work-experience.module.js';
+import { ReportsModule } from './modules/reports/reports.module.js';
+import { AccessRequestsModule } from './modules/access-requests/access-requests.module.js';
+import { AuditEventsModule } from './modules/audit-events/audit-events.module.js';
+import { ChatModule } from './modules/chat/chat.module.js';
+import { ApplicationsModule } from './modules/applications/applications.module.js';
+import { MatchingModule } from './modules/matching/matching.module.js';
+import { JobOffersModule } from './modules/job-offers/job-offers.module.js';
 import { NlpModule } from './modules/nlp/nlp.module.js';
 import { RadarIntegrationModule } from './modules/radar-integration/radar-integration.module.js';
-import { JobOffersModule } from './modules/job-offers/job-offers.module.js';
-import { MatchingModule } from './modules/matching/matching.module.js';
+import { SurveysModule } from './modules/surveys/surveys.module.js';
+import { AppointmentsModule } from './modules/appointments/appointments.module.js';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    MailModule,
     AvailabilityModule,
+    AppointmentsModule,
     AuthModule,
+    EventsModule,
+    EventCategoriesModule,
+    EventRegistrationsModule,
     ProfileModule,
     CvModule,
     SkillsModule,
@@ -34,15 +53,26 @@ import { MatchingModule } from './modules/matching/matching.module.js';
     WorkExperienceModule,
     CertificationsModule,
     CertificationDocumentsModule,
+    TechnicalAreasModule,
+    OrientationTypesModule,
+    MentorsModule,
+    AccessRequestsModule,
+    AuditEventsModule,
+    ReportsModule,
+    ChatModule,
+    MatchingModule,
+    ApplicationsModule,
+    JobOffersModule,
     NlpModule,
     RadarIntegrationModule,
-    JobOffersModule,
-    MatchingModule,
+    SurveysModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_PIPE, useClass: ZodValidationPipe },
   ],
 })
 export class AppModule {}

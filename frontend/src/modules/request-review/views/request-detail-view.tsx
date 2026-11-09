@@ -1,0 +1,84 @@
+"use client";
+
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeading } from "@/shared/components/layout/page-heading";
+import { DetailHeader } from "../components/layout/backoffice-page-header";
+import { DataContrastPanel } from "../components/detail/data-contrast-panel";
+import { DocumentViewer } from "../components/detail/document-viewer";
+import { AutomaticValidationPanel } from "../components/detail/automatic-validation-panel";
+import { RequestTimeline } from "../components/detail/request-timeline";
+import { RevertApprovalPanel } from "../components/detail/revert-approval-panel";
+import { StatusBadge } from "../components/common/status-badge";
+import { VerdictPanel } from "../components/detail/verdict-panel";
+import { DOCUMENT_TYPE_LABELS } from "../constants/request-review.constants";
+import { useDocumentUrl } from "../hooks/use-document-url";
+import { useRequestDetail } from "../hooks/use-request-detail";
+import { formatLongDate } from "../utils/format-long-date";
+import type { RequestDetailViewProps } from "../types/request-detail-view-props.types";
+
+export function RequestDetailView({ id }: RequestDetailViewProps) {
+  const { detail, error, isLoading } = useRequestDetail(id);
+  const document = useDocumentUrl(id, Boolean(detail?.document));
+  const sentAt = formatLongDate(detail?.history?.submittedAt);
+
+  return (
+    <main className="mx-auto w-full max-w-7xl min-w-0">
+      <DetailHeader requestCode={detail?.requestCode} />
+
+      <section className="flex w-full min-w-0 flex-col gap-6">
+        {isLoading && (
+          <div className="flex flex-col gap-4" data-testid="detail-skeleton">
+            <Skeleton className="h-8 w-1/3" />
+            <Skeleton className="h-96 w-full" />
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="rounded-lg border border-border bg-surface p-4 text-sm text-ink">
+            {error}
+          </p>
+        )}
+
+        {detail && (
+          <>
+            <PageHeading
+              title={`${detail.firstName} ${detail.lastName}`}
+              description={`${detail.career}${sentAt ? `. Solicitud enviada el ${sentAt}.` : "."}`}
+              actions={<StatusBadge status={detail.status} />}
+            />
+
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.37fr)_minmax(0,1fr)]">
+              <div className="min-w-0">
+                {!detail.document && (
+                  <p className="rounded-lg border border-border bg-surface p-4 text-sm text-text-secondary">
+                    Esta solicitud no tiene un documento adjunto.
+                  </p>
+                )}
+                {detail.document && document.isLoading && <Skeleton className="h-[32rem] w-full" />}
+                {detail.document && document.error && (
+                  <p role="alert" className="rounded-lg border border-border bg-surface p-4 text-sm text-ink">
+                    {document.error}
+                  </p>
+                )}
+                {detail.document && document.url && (
+                  <DocumentViewer
+                    url={document.url}
+                    mimeType={detail.document.mimeType}
+                    fileName={`${detail.document.name}.${detail.document.extension}`}
+                    caption={`Documento: ${DOCUMENT_TYPE_LABELS[detail.document.type] ?? detail.document.type}`}
+                  />
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col gap-6">
+                {detail.validation ? <AutomaticValidationPanel detail={detail} /> : <DataContrastPanel detail={detail} />}
+                <VerdictPanel detail={detail} />
+                <RevertApprovalPanel detail={detail} />
+                <RequestTimeline detail={detail} />
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}

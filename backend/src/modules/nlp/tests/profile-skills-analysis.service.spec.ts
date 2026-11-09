@@ -5,7 +5,9 @@ import { ProfileNotFoundException } from '../../profile/exceptions/profile-not-f
 import { NLP_DICTIONARY_VERSION } from '../constants/nlp-dictionary.constants.js';
 import { ProfileSkillsRadarMapper } from '../mappers/profile-skills-radar.mapper.js';
 import type { ProfileSkillResultsRepository } from '../repositories/profile-skill-results.repository.js';
-import type { ProfileSkillSourcesRepository } from '../repositories/profile-skill-sources.repository.js';
+import type { SkillAnalysisService } from '../../skills/services/skill-analysis.service.js';
+import type { TransactionContext } from '../../../common/types/transaction-context.types.js';
+import type { ProfileSkillSourcesService } from '../services/profile-skill-sources.service.js';
 import { ProfileSkillsAnalysisService } from '../services/profile-skills-analysis.service.js';
 import { SkillDetectionService } from '../services/skill-detection.service.js';
 import { SkillValidationService } from '../services/skill-validation.service.js';
@@ -14,7 +16,7 @@ import type { NlpDetectedSkill } from '../types/nlp-detected-skill.type.js';
 import type { NlpTextSource } from '../types/nlp-text-source.type.js';
 import type { ProfileSkillProcessingState } from '../types/profile-skill-processing-state.type.js';
 import type { ProfileSkillRow } from '../types/profile-skill-row.type.js';
-import { planSkillReconciliation } from '../utils/plan-skill-reconciliation.js';
+import { planSkillReconciliation } from '../../skills/utils/plan-skill-reconciliation.js';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const catalog: NlpCatalogSkill[] = [
@@ -61,35 +63,74 @@ class InMemoryResults {
 
   ensureState = async (_userId: string, now: Date) => {
     this.state ??= {
-      userId, status: 'pending', inputRevision: 0, processedRevision: null, resultVersion: 0, updatedAt: now, dictionaryVersion: null,
+      userId,
+      status: 'pending',
+      inputRevision: 0,
+      processedRevision: null,
+      resultVersion: 0,
+      updatedAt: now,
+      dictionaryVersion: null,
     };
     return this.state;
   };
 
   markError = async (_userId: string, revision: number, now: Date) => {
-    if (this.state && this.state.inputRevision === revision) this.state = { ...this.state, status: 'error', updatedAt: now };
+    if (this.state && this.state.inputRevision === revision)
+      this.state = { ...this.state, status: 'error', updatedAt: now };
   };
 
-  publish = async (_userId: string, revision: number, detected: readonly NlpDetectedSkill[], dictionaryVersion: string, now: Date) => {
-    this.publishCalls += 1;
-    this.beforePublish?.();
-    if (!this.state || this.state.inputRevision !== revision) return null;
+  reconcileDetected = async (
+    _userId: string,
+    detected: readonly NlpDetectedSkill[],
+  ) => {
     const plan = planSkillReconciliation(this.rows, detected);
     this.rows = this.rows.filter((row) => !plan.deleteIds.includes(row.id));
     for (const update of plan.updates) {
-      this.rows = this.rows.map((row) => (row.id === update.id ? { ...row, evidenceRefs: update.evidenceRefs, isHighRelevance: update.isHighRelevance } : row));
+      this.rows = this.rows.map((row) =>
+        row.id === update.id
+          ? {
+              ...row,
+              evidenceRefs: update.evidenceRefs,
+              isHighRelevance: update.isHighRelevance,
+            }
+          : row,
+      );
     }
     for (const create of plan.creates) {
       const skill = names.get(create.skillId)!;
       this.rows.push({
-        id: `row-${create.skillId}`, skillId: create.skillId, source: 'nlp', verificationStatus: 'pending', isHighRelevance: true,
-        evidenceRefs: create.evidenceRefs, skill: { name: skill.name, areaId: skill.areaId },
+        id: `row-${create.skillId}`,
+        skillId: create.skillId,
+        source: 'nlp',
+        verificationStatus: 'pending',
+        isHighRelevance: true,
+        evidenceRefs: create.evidenceRefs,
+        skill: { name: skill.name, areaId: skill.areaId },
       });
     }
-    const changed = plan.creates.length + plan.updates.length + plan.deleteIds.length > 0;
+    const changed =
+      plan.creates.length + plan.updates.length + plan.deleteIds.length > 0;
+    return changed;
+  };
+
+  publish = async (
+    _userId: string,
+    revision: number,
+    dictionaryVersion: string,
+    now: Date,
+    reconcile: (context: TransactionContext) => Promise<boolean>,
+  ) => {
+    this.publishCalls += 1;
+    this.beforePublish?.();
+    if (!this.state || this.state.inputRevision !== revision) return null;
+    const changed = await reconcile({} as TransactionContext);
     const first = this.state.processedRevision === null;
     this.state = {
-      ...this.state, status: 'ready', processedRevision: revision, dictionaryVersion, updatedAt: now,
+      ...this.state,
+      status: 'ready',
+      processedRevision: revision,
+      dictionaryVersion,
+      updatedAt: now,
       resultVersion: this.state.resultVersion + (changed || first ? 1 : 0),
     };
     return { state: this.state, changed };
@@ -99,7 +140,11 @@ class InMemoryResults {
 describe('ProfileSkillsAnalysisService', () => {
   let results: InMemoryResults;
   let textSources: NlpTextSource[];
-  let sources: { userExists: ReturnType<typeof vi.fn>; findTextSources: ReturnType<typeof vi.fn>; findCatalog: ReturnType<typeof vi.fn> };
+  let sources: {
+    ensureProfileExists: ReturnType<typeof vi.fn>;
+    findTextSources: ReturnType<typeof vi.fn>;
+    findCatalog: ReturnType<typeof vi.fn>;
+  };
   let detection: SkillDetectionService;
   let service: ProfileSkillsAnalysisService;
   let logs: string[];
@@ -108,24 +153,37 @@ describe('ProfileSkillsAnalysisService', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-23T12:00:00.000Z'));
     results = new InMemoryResults();
-    textSources = [{ id: 'w1', type: 'work-experience', text: 'Microservicios con Docker y Python; no usé Kubernetes' }];
+    textSources = [
+      {
+        id: 'w1',
+        type: 'work-experience',
+        text: 'Microservicios con Docker y Python; no usé Kubernetes',
+      },
+    ];
     sources = {
-      userExists: vi.fn().mockResolvedValue(true),
+      ensureProfileExists: vi.fn().mockResolvedValue(undefined),
       findTextSources: vi.fn(async () => textSources),
       findCatalog: vi.fn().mockResolvedValue(catalog),
     };
     detection = new SkillDetectionService();
     service = new ProfileSkillsAnalysisService(
-      sources as unknown as ProfileSkillSourcesRepository,
+      sources as unknown as ProfileSkillSourcesService,
       results as unknown as ProfileSkillResultsRepository,
       detection,
       new SkillValidationService(),
       new ProfileSkillsRadarMapper(),
+      results as unknown as SkillAnalysisService,
       new ProfileSkillsEvents(),
     );
     logs = [];
-    vi.spyOn(Logger.prototype, 'log').mockImplementation((message: unknown) => { logs.push(String(message)); });
-    vi.spyOn(Logger.prototype, 'error').mockImplementation((message: unknown) => { logs.push(String(message)); });
+    vi.spyOn(Logger.prototype, 'log').mockImplementation((message: unknown) => {
+      logs.push(String(message));
+    });
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(
+      (message: unknown) => {
+        logs.push(String(message));
+      },
+    );
   });
 
   afterEach(() => {
@@ -139,9 +197,20 @@ describe('ProfileSkillsAnalysisService', () => {
     await service.refreshAfterChange(userId);
     const snapshot = await service.getRadarSnapshot(userId);
 
-    expect(snapshot).toMatchObject({ userId, status: 'ready', version: 1, dictionaryVersion: NLP_DICTIONARY_VERSION });
+    expect(snapshot).toMatchObject({
+      userId,
+      status: 'ready',
+      version: 1,
+      dictionaryVersion: NLP_DICTIONARY_VERSION,
+    });
     expect(snapshot.updatedAt).toBe('2026-10-23T12:00:00.000Z');
-    expect(snapshot.skills.map((skill) => [skill.name, skill.source, skill.evidenceRefs.length])).toEqual([
+    expect(
+      snapshot.skills.map((skill) => [
+        skill.name,
+        skill.source,
+        skill.evidenceRefs.length,
+      ]),
+    ).toEqual([
       ['Docker', 'nlp', 1],
       ['Python', 'nlp', 1],
       ['React', 'manual', 0],
@@ -154,8 +223,14 @@ describe('ProfileSkillsAnalysisService', () => {
     await service.refreshAfterChange(userId);
     const snapshot = await service.getRadarSnapshot(userId);
 
-    expect(snapshot.skills.filter((skill) => skill.id === 'skill-docker')).toEqual([
-      expect.objectContaining({ source: 'manual', isHighRelevance: true, evidenceRefs: [{ type: 'work-experience', id: 'w1' }] }),
+    expect(
+      snapshot.skills.filter((skill) => skill.id === 'skill-docker'),
+    ).toEqual([
+      expect.objectContaining({
+        source: 'manual',
+        isHighRelevance: true,
+        evidenceRefs: [{ type: 'work-experience', id: 'w1' }],
+      }),
     ]);
   });
 
@@ -164,7 +239,11 @@ describe('ProfileSkillsAnalysisService', () => {
 
     await service.refreshAfterChange(userId);
 
-    expect(await service.getRadarSnapshot(userId)).toMatchObject({ status: 'ready', version: 1, skills: [] });
+    expect(await service.getRadarSnapshot(userId)).toMatchObject({
+      status: 'ready',
+      version: 1,
+      skills: [],
+    });
   });
 
   it('only keeps the manual skills when the profile has no texts', async () => {
@@ -173,7 +252,11 @@ describe('ProfileSkillsAnalysisService', () => {
 
     await service.refreshAfterChange(userId);
 
-    expect((await service.getRadarSnapshot(userId)).skills.map((skill) => skill.source)).toEqual(['manual']);
+    expect(
+      (await service.getRadarSnapshot(userId)).skills.map(
+        (skill) => skill.source,
+      ),
+    ).toEqual(['manual']);
   });
 
   it('is idempotent: the same data gives the same list and version, and only the date moves', async () => {
@@ -190,7 +273,9 @@ describe('ProfileSkillsAnalysisService', () => {
 
   it('updates the list when a text changes and removes skills without evidence', async () => {
     await service.refreshAfterChange(userId);
-    textSources = [{ id: 'w1', type: 'work-experience', text: 'Frontend con React' }];
+    textSources = [
+      { id: 'w1', type: 'work-experience', text: 'Frontend con React' },
+    ];
 
     await service.refreshAfterChange(userId);
     const snapshot = await service.getRadarSnapshot(userId);
@@ -201,7 +286,11 @@ describe('ProfileSkillsAnalysisService', () => {
 
   it('does not publish a result computed from an older revision', async () => {
     results.beforePublish = () => {
-      results.state = { ...results.state!, inputRevision: results.state!.inputRevision + 1, status: 'pending' };
+      results.state = {
+        ...results.state!,
+        inputRevision: results.state!.inputRevision + 1,
+        status: 'pending',
+      };
     };
 
     await service.refreshAfterChange(userId);
@@ -222,38 +311,61 @@ describe('ProfileSkillsAnalysisService', () => {
 
     expect(snapshot.status).toBe('error');
     expect(snapshot.skills.map((skill) => skill.name)).toEqual(['React']);
-    expect(logs.find((line) => line.includes('nlp.analysis.failed'))).toContain('"code":"Error"');
+    expect(logs.find((line) => line.includes('nlp.analysis.failed'))).toContain(
+      '"code":"Error"',
+    );
   });
 
   it('returns the error status to the owner instead of a technical error', async () => {
-    sources.findTextSources.mockRejectedValue(Object.assign(new Error('connection lost'), { code: 'P1001' }));
+    sources.findTextSources.mockRejectedValue(
+      Object.assign(new Error('connection lost'), { code: 'P1001' }),
+    );
 
     const response = await service.analyzeNow(userId);
 
     expect(response.status).toBe('error');
-    expect(logs.find((line) => line.includes('nlp.analysis.failed'))).toContain('"code":"P1001"');
+    expect(logs.find((line) => line.includes('nlp.analysis.failed'))).toContain(
+      '"code":"P1001"',
+    );
   });
 
   it('never fails the caller when the change cannot be registered', async () => {
-    results.registerSourceChange = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    results.registerSourceChange = vi
+      .fn()
+      .mockRejectedValue(new Error('database unavailable'));
 
     await expect(service.refreshAfterChange(userId)).resolves.toBeUndefined();
-    expect(logs.some((line) => line.includes('nlp.analysis.trigger_failed'))).toBe(true);
+    expect(
+      logs.some((line) => line.includes('nlp.analysis.trigger_failed')),
+    ).toBe(true);
   });
 
   it('keeps going when the error state cannot be stored either', async () => {
     sources.findCatalog.mockRejectedValue(new Error('down'));
     results.markError = vi.fn().mockRejectedValue(new Error('down'));
 
-    await expect(service.analyzeNow(userId)).resolves.toMatchObject({ status: 'pending' });
+    await expect(service.analyzeNow(userId)).resolves.toMatchObject({
+      status: 'pending',
+    });
+    expect(
+      logs.some((line) => line.includes('nlp.analysis.mark_error_failed')),
+    ).toBe(true);
   });
 
   it('reports the discarded keywords to the owner', async () => {
-    textSources = [{ id: 'w1', type: 'work-experience', text: 'Docker, Kubernetes y Terraform' }];
+    textSources = [
+      {
+        id: 'w1',
+        type: 'work-experience',
+        text: 'Docker, Kubernetes y Terraform',
+      },
+    ];
 
     const response = await service.analyzeNow(userId);
 
-    expect(response.analysis.discarded.map((item) => [item.name, item.reason])).toEqual([
+    expect(
+      response.analysis.discarded.map((item) => [item.name, item.reason]),
+    ).toEqual([
       ['Kubernetes', 'not-in-catalog'],
       ['Terraform', 'not-in-catalog'],
     ]);
@@ -264,9 +376,19 @@ describe('ProfileSkillsAnalysisService', () => {
     await service.refreshAfterChange(userId);
 
     const started = logs.find((line) => line.includes('nlp.analysis.started'));
-    const finished = JSON.parse(logs.find((line) => line.includes('nlp.analysis.finished'))!);
+    const finished = JSON.parse(
+      logs.find((line) => line.includes('nlp.analysis.finished'))!,
+    );
     expect(started).toContain(userId);
-    expect(finished).toMatchObject({ userId, revision: 1, sources: 1, detected: 2, accepted: 2, discarded: 0, resultVersion: 1 });
+    expect(finished).toMatchObject({
+      userId,
+      revision: 1,
+      sources: 1,
+      detected: 2,
+      accepted: 2,
+      discarded: 0,
+      resultVersion: 1,
+    });
     expect(typeof finished.durationMs).toBe('number');
     for (const line of logs) {
       expect(line).not.toMatch(/Docker|Python|Kubernetes|Microservicios/i);
@@ -274,9 +396,15 @@ describe('ProfileSkillsAnalysisService', () => {
   });
 
   it('answers 404 when the profile does not exist', async () => {
-    sources.userExists.mockResolvedValue(false);
+    sources.ensureProfileExists.mockRejectedValue(
+      new ProfileNotFoundException(),
+    );
 
-    await expect(service.getRadarSnapshot(userId)).rejects.toBeInstanceOf(ProfileNotFoundException);
-    await expect(service.analyzeNow(userId)).rejects.toBeInstanceOf(ProfileNotFoundException);
+    await expect(service.getRadarSnapshot(userId)).rejects.toBeInstanceOf(
+      ProfileNotFoundException,
+    );
+    await expect(service.analyzeNow(userId)).rejects.toBeInstanceOf(
+      ProfileNotFoundException,
+    );
   });
 });

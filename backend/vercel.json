@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm vercel-build",
+  "functions": {
+    "src/main.ts": {
+      "includeFiles": "{ocr-models/**,src/modules/mail/mjml/**}"
+    }
+  }
+}

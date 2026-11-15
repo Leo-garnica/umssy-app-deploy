@@ -9,7 +9,15 @@ import {
   useState,
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Check, ListChecks, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CircleDashed,
+  ListChecks,
+  Minus,
+  X,
+} from 'lucide-react';
 import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,9 +43,14 @@ import {
 } from '@/components/ui/progress';
 import { useAuth } from '@/shared/contexts/auth-context';
 import {
+  PROFILE_COMPLETENESS_MESSAGES,
   PROFILE_COMPLETENESS_SECTION_IDS,
   PROFILE_COMPLETENESS_SECTION_LABELS,
 } from '../constants/profile-completeness.constants';
+import {
+  PROFILE_GUIDE_ASSISTANT_MESSAGES,
+  PROFILE_GUIDE_SECTION_TIPS,
+} from '../constants/profile-guide-tips.constants';
 import { ProfileGuideContext } from '../contexts/profile-guide-context';
 import { useProfile } from '../hooks/use-profile';
 import { useProfileCompleteness } from '../hooks/use-profile-completeness';
@@ -321,11 +334,22 @@ function ProfileGuideSessionProvider({
         >
           <ProfileGuideBubble isOpen={bubbleOpen} popKey={celebrationKey}>
             <div className="space-y-3">
-              <p className="font-semibold text-ink">
-                {isComplete
-                  ? 'Tu perfil está completo'
-                  : 'Sigamos con tu perfil'}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-semibold text-ink">
+                  {isComplete
+                    ? 'Tu perfil está al día'
+                    : 'Sigamos con tu perfil'}
+                </p>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Minimizar asistente"
+                  className="-mt-1 -mr-2 shrink-0"
+                  onClick={() => setBubbleOpen(false)}
+                >
+                  <Minus aria-hidden="true" />
+                </Button>
+              </div>
               <p className="text-sm text-text-secondary">
                 {isComplete
                   ? 'Puedes revisar tu trayectoria desde Mi perfil. Estoy aquí cuando me necesites.'
@@ -347,13 +371,6 @@ function ProfileGuideSessionProvider({
                 }}
               >
                 {isComplete ? 'Revisar mi perfil' : 'Continuar mi perfil'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setBubbleOpen(false)}
-              >
-                Ocultar ayuda
               </Button>
             </div>
           </ProfileGuideBubble>
@@ -427,15 +444,21 @@ function ProfileGuideSessionProvider({
                 <ProgressValue className="mx-auto font-heading text-4xl font-bold text-app-header">
                   {() => `${completeness?.percentage ?? 100}%`}
                 </ProgressValue>
+                <p className="mx-auto text-sm font-semibold text-app-header">
+                  {PROFILE_COMPLETENESS_MESSAGES.completedTitle}
+                </p>
               </Progress>
               <DialogTitle className="text-3xl font-bold text-ink">
-                ¡Tu perfil está completo!
+                {profile?.firstName
+                  ? `¡Felicidades, ${profile.firstName}!`
+                  : '¡Felicidades!'}
               </DialogTitle>
               <DialogDescription>
-                Ya estás listo para conectar con las oportunidades de UMSSY.
-                Puedes actualizar tu información cuando quieras.
+                ¡Tu perfil está completo! Ya estás listo para conectar con las
+                oportunidades de UMSSY. Puedes actualizar tu información cuando
+                quieras.
               </DialogDescription>
-              <Button onClick={finish}>Volver al inicio</Button>
+              <Button onClick={finish}>Volver a Inicio</Button>
             </div>
           ) : mode === 'wizard' ? (
             <div className="flex max-h-editor-dialog min-h-0 flex-col">
@@ -531,6 +554,17 @@ function ProfileGuideSessionProvider({
                         isTraveling && 'invisible',
                       )}
                     >
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-app-header">
+                          {PROFILE_GUIDE_ASSISTANT_MESSAGES.title}
+                        </p>
+                        <p className="text-xs font-semibold text-text-secondary">
+                          {PROFILE_GUIDE_ASSISTANT_MESSAGES.subtitle}
+                        </p>
+                      </div>
+                      <p className="text-sm text-text-secondary">
+                        {PROFILE_GUIDE_SECTION_TIPS[step]}
+                      </p>
                       <p
                         role="status"
                         aria-live="polite"
@@ -549,6 +583,16 @@ function ProfileGuideSessionProvider({
                                 : sectionComplete
                                   ? 'Esta sección ya está completa. Puedes revisarla o continuar.'
                                   : 'Completemos esta sección juntos. Tú decides cuándo continuar.'}
+                      </p>
+                      <p className="text-xs text-text-secondary">
+                        {PROFILE_GUIDE_ASSISTANT_MESSAGES.nextStep}:{' '}
+                        <span className="font-semibold text-ink">
+                          {index < PROFILE_COMPLETENESS_SECTION_IDS.length - 1
+                            ? PROFILE_COMPLETENESS_SECTION_LABELS[
+                                PROFILE_COMPLETENESS_SECTION_IDS[index + 1]
+                              ]
+                            : PROFILE_GUIDE_ASSISTANT_MESSAGES.lastStep}
+                        </span>
                       </p>
                       <Button
                         variant="outline"
@@ -571,6 +615,7 @@ function ProfileGuideSessionProvider({
                             const completed = completeness?.sections.find(
                               (section) => section.id === id,
                             )?.isCompleted;
+                            const inProgress = !completed && id === step;
                             return (
                               <Button
                                 key={id}
@@ -582,11 +627,20 @@ function ProfileGuideSessionProvider({
                               >
                                 {completed ? (
                                   <Check aria-hidden="true" />
+                                ) : inProgress ? (
+                                  <CircleDashed
+                                    aria-hidden="true"
+                                    className="text-app-header"
+                                  />
                                 ) : (
                                   <ArrowRight aria-hidden="true" />
                                 )}
                                 {PROFILE_COMPLETENESS_SECTION_LABELS[id]} ·{' '}
-                                {completed ? 'Completada' : 'Pendiente'}
+                                {completed
+                                  ? 'Completada'
+                                  : inProgress
+                                    ? 'En proceso'
+                                    : 'Pendiente'}
                               </Button>
                             );
                           })}
@@ -608,7 +662,9 @@ function ProfileGuideSessionProvider({
                     }
                   >
                     <ArrowLeft aria-hidden="true" />
-                    Anterior
+                    {index > 0
+                      ? `Volver a ${PROFILE_COMPLETENESS_SECTION_LABELS[PROFILE_COMPLETENESS_SECTION_IDS[index - 1]]}`
+                      : 'Anterior'}
                   </Button>
                 ) : (
                   <p className="text-sm font-semibold text-app-header">

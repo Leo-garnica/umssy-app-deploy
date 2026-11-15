@@ -382,7 +382,7 @@ describe('ProfileGuideProvider', () => {
       screen.getByRole('button', { name: 'Iniciar guardado de prueba' }),
     );
 
-    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Volver a Datos de contacto' })).toBeDisabled();
     expect(
       screen.getByRole('button', { name: 'Continuar más tarde' }),
     ).toBeDisabled();
@@ -406,7 +406,7 @@ describe('ProfileGuideProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Finalizar' }));
 
     const finishDialog = await screen.findByRole('dialog', {
-      name: '¡Tu perfil está completo!',
+      name: '¡Felicidades, Romario!',
     });
     expect(finishDialog).toBeVisible();
     expect(
@@ -414,6 +414,7 @@ describe('ProfileGuideProvider', () => {
         name: 'Completitud del perfil',
       }),
     ).toHaveAttribute('aria-valuenow', '100');
+    expect(finishDialog).toHaveTextContent('100%Perfil completado');
     expect(
       within(finishDialog).queryByRole('button', { name: 'Pausar guía' }),
     ).not.toBeInTheDocument();
@@ -425,7 +426,7 @@ describe('ProfileGuideProvider', () => {
     expect(
       screen.queryByRole('button', { name: 'Abrir asistente de perfil' }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Volver al inicio' }));
+    await user.click(screen.getByRole('button', { name: 'Volver a Inicio' }));
     await waitFor(() =>
       expect(state.write).toHaveBeenLastCalledWith(
         'user-a',
@@ -443,7 +444,7 @@ describe('ProfileGuideProvider', () => {
     ).toBeVisible();
   });
 
-  it.each(['Anterior', 'Continuar más tarde'])(
+  it.each(['Volver a Datos de contacto', 'Continuar más tarde'])(
     'confirms unsaved changes before %s',
     async (action) => {
       const user = userEvent.setup();
@@ -476,7 +477,7 @@ describe('ProfileGuideProvider', () => {
       await waitFor(() =>
         expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
       );
-      if (action === 'Anterior') {
+      if (action === 'Volver a Datos de contacto') {
         expect(
           screen.getByRole('dialog', { name: 'Datos de contacto' }),
         ).toBeVisible();
@@ -523,7 +524,7 @@ describe('ProfileGuideProvider', () => {
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Finalizar' })).toBeDisabled();
     expect(
-      screen.queryByRole('dialog', { name: '¡Tu perfil está completo!' }),
+      screen.queryByRole('dialog', { name: '¡Felicidades, Romario!' }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Finalizar guía' }));
@@ -532,7 +533,7 @@ describe('ProfileGuideProvider', () => {
     );
 
     expect(
-      await screen.findByRole('dialog', { name: '¡Tu perfil está completo!' }),
+      await screen.findByRole('dialog', { name: '¡Felicidades, Romario!' }),
     ).toBeVisible();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(state.push).not.toHaveBeenCalled();
@@ -540,6 +541,29 @@ describe('ProfileGuideProvider', () => {
     expect(
       screen.queryByRole('button', { name: 'Abrir asistente de perfil' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('celebrates without a name when the profile has no first name', async () => {
+    const user = userEvent.setup();
+    state.profile = { ...PROFILE, firstName: '' };
+    state.sessions.set('user-a', session({ dismissed: true }));
+    state.completeness = completeness(
+      [...PROFILE_COMPLETENESS_SECTION_IDS],
+      100,
+    );
+    render(page());
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Continuar guía de prueba' }),
+      ).toBeEnabled(),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar guía de prueba' }),
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: '¡Felicidades!' }),
+    ).toBeVisible();
   });
 
   it('skips a section without changing its real completeness or refreshing it as saved', async () => {
@@ -739,6 +763,36 @@ describe('ProfileGuideProvider', () => {
     },
   );
 
+  it('minimizes the corner bubble with the minus button and restores it from the avatar', async () => {
+    const user = userEvent.setup();
+    state.sessions.set('user-a', session({ dismissed: true, completed: true }));
+    state.completeness = completeness(
+      [...PROFILE_COMPLETENESS_SECTION_IDS],
+      100,
+    );
+    render(page());
+    const avatar = await screen.findByRole('button', {
+      name: 'Abrir asistente de perfil',
+    });
+    expect(avatar).toHaveAttribute('aria-expanded', 'false');
+    await user.click(avatar);
+
+    expect(screen.getByText('Tu perfil está al día')).toBeVisible();
+    expect(avatar).toHaveAttribute('aria-expanded', 'true');
+    await user.click(
+      screen.getByRole('button', { name: 'Minimizar asistente' }),
+    );
+
+    expect(screen.queryByText('Tu perfil está al día')).not.toBeInTheDocument();
+    expect(avatar).toHaveAttribute('aria-expanded', 'false');
+    await user.click(avatar);
+
+    expect(screen.getByText('Tu perfil está al día')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Revisar mi perfil' }));
+    expect(state.push).toHaveBeenCalledWith('/profile');
+    expect(screen.queryByText('Tu perfil está al día')).not.toBeInTheDocument();
+  });
+
   it('keeps the pending checklist under the robot and updates the toggle label', async () => {
     const user = userEvent.setup();
     render(page());
@@ -746,6 +800,12 @@ describe('ProfileGuideProvider', () => {
     const assistant = screen.getByRole('complementary', {
       name: 'Ayuda de la guía',
     });
+    expect(assistant).toHaveTextContent('Asistente UMSSY');
+    expect(assistant).toHaveTextContent('Guía de perfil');
+    expect(assistant).toHaveTextContent(
+      'Resume en pocas líneas quién eres y qué te distingue como profesional.',
+    );
+    expect(assistant).toHaveTextContent('Siguiente paso: Formación académica');
     const show = within(assistant).getByRole('button', {
       name: 'Ver pendientes',
     });
@@ -767,8 +827,13 @@ describe('ProfileGuideProvider', () => {
       }),
     ).toBeVisible();
     expect(
-      within(list).getByRole('button', { name: 'Presentación · Pendiente' }),
+      within(list).getByRole('button', { name: 'Presentación · En proceso' }),
     ).toHaveAttribute('aria-current', 'step');
+    expect(
+      within(list).getByRole('button', {
+        name: 'Formación académica · Pendiente',
+      }),
+    ).not.toHaveAttribute('aria-current');
     await user.click(hide);
 
     expect(
@@ -779,6 +844,27 @@ describe('ProfileGuideProvider', () => {
     expect(
       within(assistant).getByRole('button', { name: 'Ver pendientes' }),
     ).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('announces the pending review as the next step on the last section', async () => {
+    const user = userEvent.setup();
+    state.sessions.set('user-a', session({ dismissed: true, lastStep: 'cv' }));
+    render(page());
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Continuar guía de prueba' }),
+      ).toBeEnabled(),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar guía de prueba' }),
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Documentos y CV' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('complementary', { name: 'Ayuda de la guía' }),
+    ).toHaveTextContent('Siguiente paso: Revisar pendientes');
   });
 
   it('uses the dirty-change confirmation before jumping through the robot checklist', async () => {
@@ -846,7 +932,9 @@ describe('ProfileGuideProvider', () => {
       'fly',
     );
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Volver a Datos de contacto' }),
+    ).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Pausar guía' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Siguiente' }));
     expect(state.arrivals).toHaveLength(1);
@@ -866,7 +954,9 @@ describe('ProfileGuideProvider', () => {
       'data-mascot-pose',
       'point',
     );
-    await user.click(screen.getByRole('button', { name: 'Anterior' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Volver a Presentación' }),
+    );
 
     expect(state.arrivals).toHaveLength(2);
     expect(state.arrivals[1].side).toBe('left');

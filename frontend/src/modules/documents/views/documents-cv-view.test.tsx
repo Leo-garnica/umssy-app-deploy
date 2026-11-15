@@ -6,10 +6,20 @@ import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_FILE_SIZE_BYTES } from "@/modules/profile/config/file-upload.config";
+import type { ProfileResponse } from "@/modules/profile";
+import { profileService } from "@/modules/profile/services/profile.service";
+import { educationsService } from "@/modules/education/services/educations.service";
+import { skillsService } from "@/modules/skills/services/skills.service";
 import { documentsService } from "../services/documents.service";
 import type { CvPage } from "../types/cv-page.types";
+import type { CvExtraction } from "../types/cv-extraction.types";
 import type { SavedCv } from "../types/saved-cv.types";
 import { DocumentsCvView } from "./documents-cv-view";
+import { DocumentsCvGuideStep } from "../components/documents-cv-guide-step";
+
+vi.mock("@/shared/utils/download-file", () => ({
+  downloadFile: vi.fn(),
+}));
 
 vi.mock("../services/documents.service", () => ({
   documentsService: {
@@ -17,10 +27,65 @@ vi.mock("../services/documents.service", () => ({
     getCvFile: vi.fn(),
     uploadCv: vi.fn(),
     deleteCv: vi.fn(),
+    extractCvData: vi.fn(),
+    generateCv: vi.fn(),
+    getPortfolioProjectCount: vi.fn(),
   },
 }));
 
+vi.mock("@/modules/profile/services/profile.service", () => ({
+  profileService: {
+    getProfile: vi.fn(),
+    getCities: vi.fn().mockResolvedValue([{ id: "city-cbba", title: "Cochabamba" }]),
+    updatePersonalInfo: vi.fn(),
+    updatePresentation: vi.fn(),
+  },
+}));
+
+vi.mock("@/modules/skills/services/skills.service", () => ({
+  skillsService: { getMySkills: vi.fn(), saveMySkills: vi.fn(), addSkills: vi.fn() },
+}));
+
+vi.mock("@/modules/education/services/educations.service", () => ({
+  educationsService: { getInstitutions: vi.fn(), getDegrees: vi.fn(), createEducation: vi.fn() },
+}));
+
 const PDF_TYPE = "application/pdf";
+const EMPTY_EXTRACTION: CvExtraction = {
+  cvId: "",
+  contact: { firstName: null, lastName: null, email: null, phone: null, location: null, cityId: null },
+  presentation: { headline: null, aboutMe: null },
+  educations: [],
+  workExperiences: [],
+  skills: [],
+};
+const PROFILE: ProfileResponse = {
+  id: "user-1",
+  firstName: "Valeria",
+  lastName: "Quispe",
+  institutionalEmail: "valeria@umss.edu",
+  personalEmail: null,
+  phone: "70000000",
+  city: { id: "city-cbba", title: "Cochabamba" },
+  headline: "Ingeniera de Sistemas",
+  aboutMe: null,
+  updatedAt: "2026-11-01T00:00:00.000Z",
+};
+const REVIEW_EXTRACTION: CvExtraction = {
+  ...EMPTY_EXTRACTION,
+  contact: { ...EMPTY_EXTRACTION.contact, firstName: "Valeria Andrea", email: "valeria@mail.com" },
+  presentation: { headline: null, aboutMe: "Desarrolladora web" },
+  educations: [
+    {
+      institution: "Universidad Mayor de San Simón (UMSS)",
+      degree: "Licenciatura en Ingeniería de Sistemas",
+      startDate: "2014-01-01",
+      endDate: "2019-01-01",
+      description: null,
+    },
+  ],
+  skills: [{ skillId: "skill-ts", name: "TypeScript" }],
+};
 const CV_SIZE_IN_BYTES = 1258291;
 const UPLOAD_DATE = new Date(2026, 8, 20);
 
@@ -103,8 +168,24 @@ describe("DocumentsCvView", () => {
     vi.mocked(documentsService.getCvFile).mockResolvedValue(
       new Blob(["%PDF"], { type: PDF_TYPE }),
     );
+    vi.mocked(profileService.getProfile).mockResolvedValue(PROFILE);
+    vi.mocked(profileService.updatePersonalInfo).mockResolvedValue(PROFILE);
+    vi.mocked(profileService.updatePresentation).mockResolvedValue(PROFILE);
+    vi.mocked(educationsService.getInstitutions).mockResolvedValue([]);
+    vi.mocked(educationsService.getDegrees).mockResolvedValue([]);
+    vi.mocked(skillsService.getMySkills).mockResolvedValue([{ id: "skill-sql", name: "SQL" }]);
+    vi.mocked(skillsService.saveMySkills).mockResolvedValue([]);
+    vi.mocked(skillsService.addSkills).mockResolvedValue([]);
+    vi.mocked(documentsService.extractCvData).mockImplementation((cvId: string) =>
+      Promise.resolve({ ...EMPTY_EXTRACTION, cvId }),
+    );
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:cv");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.mocked(documentsService.generateCv).mockResolvedValue({
+      file: new Blob(["%PDF"], { type: PDF_TYPE }),
+      fileName: "CV_Valeria_Quispe.pdf",
+    });
+    vi.mocked(documentsService.getPortfolioProjectCount).mockResolvedValue(0);
     vi.mocked(documentsService.deleteCv).mockImplementation((cvId: string) => {
       serverCvs = serverCvs.filter((cv) => cv.id !== cvId);
       if (serverCvs.length > 0) {
@@ -118,6 +199,59 @@ describe("DocumentsCvView", () => {
     cleanup();
     vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  it("offers to generate a cv from the profile data", async () => {
+    render(<DocumentsCvView />);
+
+    expect(
+      await screen.findByRole("region", { name: "Generar CV con los datos del perfil" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generar CV" })).toBeInTheDocument();
+  });
+
+  it("generates a cv and displays its card as current cv in saved cvs", async () => {
+    const user = userEvent.setup();
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Generar CV" }));
+
+    expect(await screen.findByRole("dialog", { name: "Generar CV profesional" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Descargar CV en PDF" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Generar CV profesional" })).not.toBeInTheDocument();
+    });
+
+    const [currentItem] = getRecentItems();
+    expect(within(currentItem).getByText("CV_Valeria_Quispe.pdf")).toBeInTheDocument();
+    expect(within(currentItem).getByText("Vigente")).toBeInTheDocument();
+    expect(within(currentItem).getByRole("button", { name: "Ver CV_Valeria_Quispe.pdf" })).toBeInTheDocument();
+  });
+
+  it("allows consulting the generated cv in the document viewer", async () => {
+    const user = userEvent.setup();
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Generar CV" }));
+    await user.click(await screen.findByRole("button", { name: "Descargar CV en PDF" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Generar CV profesional" })).not.toBeInTheDocument();
+    });
+
+    const [currentItem] = getRecentItems();
+    await user.click(within(currentItem).getByRole("button", { name: "Ver CV_Valeria_Quispe.pdf" }));
+
+    expect(await screen.findByRole("dialog", { name: "Vista previa del CV" })).toBeInTheDocument();
+    expect(screen.getByTitle("Vista previa de CV_Valeria_Quispe.pdf")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cerrar" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Vista previa del CV" })).not.toBeInTheDocument();
+    });
   });
 
   it("renders the cv title once in the main heading", async () => {
@@ -181,7 +315,7 @@ describe("DocumentsCvView", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Seleccionar PDF" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeDisabled();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tu CV se cargó correctamente.")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -232,17 +366,238 @@ describe("DocumentsCvView", () => {
     await renderView();
 
     await chooseAndConfirm(user, createFile("CV_Valeria_Quispe.pdf"));
-    expect(await screen.findByRole("status")).toHaveTextContent("Tu CV se cargó correctamente.");
+    expect(await screen.findByText("Tu CV se cargó correctamente.")).toBeVisible();
 
     act(() => vi.advanceTimersByTime(5000));
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tu CV se cargó correctamente.")).not.toBeInTheDocument();
 
     await user.upload(getFileInput(), createFile("foto.png", "image/png"));
     act(() => vi.advanceTimersByTime(5000));
 
     expect(screen.getByRole("alert")).toHaveTextContent("El CV debe estar en formato PDF.");
     vi.useRealTimers();
+  });
+
+  it("selects a pdf dropped on the upload zone and uploads it on confirm", async () => {
+    const user = userEvent.setup();
+    await renderView();
+    const file = createFile("CV_Valeria_Quispe.pdf");
+
+    fireEvent.drop(screen.getByText("Selecciona tu CV en formato PDF"), { dataTransfer: { files: [file] } });
+
+    expect(screen.getByText("CV_Valeria_Quispe.pdf · 1.2 MB")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirmar carga" }));
+
+    expect(await screen.findByText("Tu CV se cargó correctamente.")).toBeVisible();
+    expect(documentsService.uploadCv).toHaveBeenCalledWith(file, expect.any(Function));
+  });
+
+  it("rejects a dropped file that is not a pdf", async () => {
+    await renderView();
+
+    fireEvent.drop(screen.getByText("Selecciona tu CV en formato PDF"), {
+      dataTransfer: { files: [createFile("foto.png", "image/png")] },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("El CV debe estar en formato PDF.");
+    expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeDisabled();
+  });
+
+  it("asks before replacing the current cv with a dropped pdf", async () => {
+    storeCv(buildCv("CV_Valeria_Quispe.pdf", CV_SIZE_IN_BYTES));
+    await renderView();
+
+    fireEvent.drop(screen.getByText("Ya tienes un CV vigente"), {
+      dataTransfer: { files: [createFile("CV_Nuevo.pdf")] },
+    });
+
+    expect(await screen.findByText("¿Subir una nueva versión?")).toBeInTheDocument();
+    expect(documentsService.uploadCv).not.toHaveBeenCalled();
+  });
+
+  it("does not read the cv automatically after uploading it", async () => {
+    const user = userEvent.setup();
+    await renderView();
+
+    await chooseAndConfirm(user, createFile("CV_Valeria_Quispe.pdf"));
+
+    expect(await screen.findByText("Ya tienes un CV vigente")).toBeInTheDocument();
+    expect(documentsService.extractCvData).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("reads the current cv from Autollenar perfil and shows the sections to review", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockImplementation((cvId: string) =>
+      Promise.resolve({
+        ...EMPTY_EXTRACTION,
+        cvId,
+        contact: { ...EMPTY_EXTRACTION.contact, email: "valeria@mail.com" },
+        presentation: { headline: null, aboutMe: "Desarrolladora web" },
+        workExperiences: [
+          {
+            companyName: "Empresa SRL",
+            position: "Desarrolladora",
+            startDate: "2021-03-01",
+            endDate: null,
+            isCurrent: true,
+            description: "APIs REST",
+          },
+        ],
+        skills: [{ skillId: "skill-ts", name: "TypeScript" }],
+      }),
+    );
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Revisar datos extraídos del CV" });
+    expect(documentsService.extractCvData).toHaveBeenCalledWith(serverCvs[0].id);
+    expect(await within(dialog).findByDisplayValue("valeria@mail.com")).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "Presentación (1)" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "Experiencia laboral (1)" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "Habilidades técnicas (1)" })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("tab", { name: "Presentación (1)" }));
+
+    expect(within(dialog).getByLabelText(/Titular/)).toHaveValue("Ingeniera de Sistemas");
+  });
+
+  it("closes the review from Cancelar and keeps the cv when the extraction fails", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockRejectedValue({ response: { status: 500 } });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "El servidor no pudo leer tu CV en este momento. Intenta de nuevo en unos segundos.",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("Ya tienes un CV vigente")).toBeInTheDocument();
+  });
+
+  it("retries the extraction after a network error and shows the review", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData)
+      .mockRejectedValueOnce(new Error("Network Error"))
+      .mockResolvedValueOnce(REVIEW_EXTRACTION);
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Revisa tu conexión");
+
+    await user.click(within(dialog).getByRole("button", { name: "Reintentar" }));
+
+    expect(await within(dialog).findByRole("tab", { name: "Contacto (2)" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("offers only the manual fill when the cv is a scanned pdf", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockRejectedValue({
+      response: { status: 422, data: { code: "CV_UNREADABLE" } },
+    });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("no tiene texto seleccionable");
+    expect(within(dialog).queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Llenar mi perfil a mano" })).toHaveAttribute("href", "/profile");
+    expect(screen.getByText("Ya tienes un CV vigente")).toBeInTheDocument();
+  });
+
+  it("tells the user when nothing was detected in the cv", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockResolvedValue({ ...EMPTY_EXTRACTION, cvId: "cv-1" });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("No detectamos datos en tu CV");
+    expect(within(dialog).getByRole("button", { name: "Aplicar a mi perfil" })).toBeDisabled();
+  });
+
+  it("applies only the selected and corrected data to the profile", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockResolvedValue({ ...REVIEW_EXTRACTION, cvId: "cv-1" });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog", { name: "Revisar datos extraídos del CV" });
+    const firstName = await within(dialog).findByRole("textbox", { name: "Nombres" });
+    await user.clear(firstName);
+    await user.type(firstName, "Vale");
+    await user.click(within(dialog).getByRole("checkbox", { name: "Incluir Correo personal" }));
+    await user.click(within(dialog).getByRole("tab", { name: "Formación académica (1)" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Incluir sección Formación académica" }));
+    await user.click(within(dialog).getByRole("button", { name: "Aplicar a mi perfil" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(profileService.updatePersonalInfo).toHaveBeenCalledWith({
+      firstName: "Vale",
+      lastName: "Quispe",
+      cityId: "city-cbba",
+      phone: "70000000",
+      personalEmail: "",
+    });
+    expect(profileService.updatePresentation).toHaveBeenCalledWith({
+      headline: "Ingeniera de Sistemas",
+      aboutMe: "Desarrolladora web",
+    });
+    expect(educationsService.createEducation).not.toHaveBeenCalled();
+    expect(skillsService.addSkills).toHaveBeenCalledWith(["skill-ts"]);
+    expect(screen.getByText("Se aplicaron los datos seleccionados a tu perfil.")).toBeVisible();
+  });
+
+  it("keeps the review open and tells what was not applied when a save fails", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockResolvedValue({ ...REVIEW_EXTRACTION, cvId: "cv-1" });
+    vi.mocked(educationsService.createEducation).mockRejectedValue({ response: { status: 400 } });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog", { name: "Revisar datos extraídos del CV" });
+    await user.click(await within(dialog).findByRole("button", { name: "Aplicar a mi perfil" }));
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("Se aplicó: Contacto, Presentación, Habilidades técnicas (1).");
+    expect(alert).toHaveTextContent("No se aplicó: Formación académica: Licenciatura en Ingeniería de Sistemas.");
+    expect(within(dialog).getByRole("checkbox", { name: "Incluir sección Contacto" })).not.toBeChecked();
+    await user.click(within(dialog).getByRole("tab", { name: "Formación académica (1)" }));
+    expect(within(dialog).getByRole("checkbox", { name: "Incluir sección Formación académica" })).toBeChecked();
+  });
+
+  it("applies nothing when the review is cancelled", async () => {
+    const user = userEvent.setup();
+    seedCvs("CV_Valeria_Quispe.pdf");
+    vi.mocked(documentsService.extractCvData).mockResolvedValue({ ...REVIEW_EXTRACTION, cvId: "cv-1" });
+    await renderView();
+
+    await user.click(screen.getByRole("button", { name: "Autollenar perfil" }));
+    const dialog = await screen.findByRole("dialog", { name: "Revisar datos extraídos del CV" });
+    await user.click(await within(dialog).findByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(profileService.updatePersonalInfo).not.toHaveBeenCalled();
+    expect(profileService.updatePresentation).not.toHaveBeenCalled();
+    expect(educationsService.createEducation).not.toHaveBeenCalled();
+    expect(skillsService.addSkills).not.toHaveBeenCalled();
   });
 
   it("opens the file picker from Seleccionar PDF", async () => {
@@ -267,8 +622,8 @@ describe("DocumentsCvView", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirmar carga" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Tu CV se cargó correctamente.");
-    expect(documentsService.uploadCv).toHaveBeenCalledWith(file);
+    expect(await screen.findByText("Tu CV se cargó correctamente.")).toBeVisible();
+    expect(documentsService.uploadCv).toHaveBeenCalledWith(file, expect.any(Function));
     expect(within(getRecentItems()[0]).getByText("Vigente")).toBeInTheDocument();
     expect(screen.getByText("CV_Valeria_Quispe.pdf")).toBeInTheDocument();
     expect(screen.getByText("Ya tienes un CV vigente")).toBeInTheDocument();
@@ -318,7 +673,7 @@ describe("DocumentsCvView", () => {
     await user.click(screen.getByRole("button", { name: "Confirmar carga" }));
 
     expect(documentsService.uploadCv).toHaveBeenCalledTimes(2);
-    expect(await screen.findByRole("status")).toHaveTextContent("Tu CV se cargó correctamente.");
+    expect(await screen.findByText("Tu CV se cargó correctamente.")).toBeVisible();
   });
 
   it("shows an error and returns to the initial state for a file that is not a pdf", async () => {
@@ -399,7 +754,7 @@ describe("DocumentsCvView", () => {
       pendingUpload.resolve(cv);
     });
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Tu CV se cargó correctamente.");
+    expect(await screen.findByText("Tu CV se cargó correctamente.")).toBeVisible();
     expect(screen.getByText("CV_Nuevo.pdf")).toBeInTheDocument();
   });
 
@@ -434,10 +789,8 @@ describe("DocumentsCvView", () => {
     await user.click(await screen.findByRole("button", { name: "Subir" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(documentsService.uploadCv).toHaveBeenCalledWith(file);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Tu nueva versión del CV se cargó correctamente.",
-    );
+    expect(documentsService.uploadCv).toHaveBeenCalledWith(file, expect.any(Function));
+    expect(screen.getByText("Tu nueva versión del CV se cargó correctamente.")).toBeVisible();
     const items = getRecentItems();
     expect(items).toHaveLength(2);
     expect(within(items[0]).getByText("CV_Nuevo.pdf")).toBeInTheDocument();
@@ -491,9 +844,7 @@ describe("DocumentsCvView", () => {
       pendingUpload.resolve(cv);
     });
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Tu nueva versión del CV se cargó correctamente.",
-    );
+    expect(await screen.findByText("Tu nueva versión del CV se cargó correctamente.")).toBeVisible();
   });
 
   it("keeps the dialog open with the error to retry after a network error", async () => {
@@ -567,7 +918,7 @@ describe("DocumentsCvView", () => {
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     expect(documentsService.deleteCv).toHaveBeenCalledWith("cv-2");
-    expect(screen.getByRole("status")).toHaveTextContent("El CV se eliminó.");
+    expect(screen.getByText("El CV se eliminó.")).toBeVisible();
     const items = getRecentItems();
     expect(items).toHaveLength(1);
     expect(within(items[0]).getByText("CV_2025.pdf")).toBeInTheDocument();
@@ -695,5 +1046,102 @@ describe("DocumentsCvView", () => {
       "No encontramos tu CV. Recarga la página.",
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("embeds the guide without a page or dialog and advances only after uploading", async () => {
+    const user = userEvent.setup();
+    const pendingUpload = createDeferred<SavedCv>();
+    const onSaved = vi.fn();
+    const onDirtyChange = vi.fn();
+    const onBusyChange = vi.fn();
+    const file = createFile("CV_Guia.pdf");
+    const savedCv = buildCv(file.name, file.size);
+    vi.mocked(documentsService.uploadCv).mockReturnValueOnce(pendingUpload.promise);
+    render(<DocumentsCvGuideStep onSaved={onSaved} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange} />);
+
+    await screen.findByRole("button", { name: "Seleccionar PDF" });
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    await user.upload(getFileInput(), file);
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(onSaved).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Confirmar carga" }));
+    await waitFor(() => expect(onBusyChange).toHaveBeenLastCalledWith(true));
+    expect(onSaved).not.toHaveBeenCalled();
+
+    await act(async () => {
+      storeCv(savedCv);
+      pendingUpload.resolve(savedCv);
+    });
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    expect(documentsService.uploadCv).toHaveBeenCalledWith(file, expect.any(Function));
+  });
+
+  it("keeps the guide dirty and does not advance after an upload error", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const onDirtyChange = vi.fn();
+    const onBusyChange = vi.fn();
+    vi.mocked(documentsService.uploadCv).mockRejectedValueOnce({ response: { status: 500 } });
+    render(<DocumentsCvGuideStep onSaved={onSaved} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange} />);
+    await screen.findByRole("button", { name: "Seleccionar PDF" });
+
+    await chooseAndConfirm(user, createFile("CV_Guia.pdf"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo subir tu CV. Intenta de nuevo.");
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeEnabled();
+  });
+
+  it("does not mark an empty upload response as a saved guide step", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const onDirtyChange = vi.fn();
+    vi.mocked(documentsService.uploadCv).mockResolvedValueOnce(null);
+    render(<DocumentsCvGuideStep onSaved={onSaved} onDirtyChange={onDirtyChange} onBusyChange={vi.fn()} />);
+    await screen.findByRole("button", { name: "Seleccionar PDF" });
+
+    await chooseAndConfirm(user, createFile("CV_Guia.pdf"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo subir tu CV.");
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it.each([false, true])("keeps upload selectors unique when the normal page and guide coexist (saved CV: %s)", async (hasSavedCv) => {
+    const user = userEvent.setup();
+    if (hasSavedCv) seedCvs("CV_2026.pdf");
+    const { container } = render(
+      <>
+        <section aria-label="Documentos habituales"><DocumentsCvView /></section>
+        <section aria-label="Documentos en la guía"><DocumentsCvGuideStep onSaved={vi.fn()} onDirtyChange={vi.fn()} onBusyChange={vi.fn()} /></section>
+      </>,
+    );
+    const normal = within(screen.getByRole("region", { name: "Documentos habituales" }));
+    const guide = within(screen.getByRole("region", { name: "Documentos en la guía" }));
+    const selectLabel = hasSavedCv ? "Subir nueva versión" : "Seleccionar PDF";
+    const normalButton = await normal.findByRole("button", { name: selectLabel });
+    const guideButton = await guide.findByRole("button", { name: selectLabel });
+
+    expect(normalButton).toHaveAttribute("id", "cv-upload-select");
+    expect(guideButton).toHaveAttribute("id", "profile-guide-cv-upload-select");
+    const ids = [...container.querySelectorAll("[id]")].map((element) => element.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    const normalPicker = vi.spyOn(normal.getByLabelText("Archivo PDF del CV"), "click");
+    const guidePicker = vi.spyOn(guide.getByLabelText("Archivo PDF del CV"), "click");
+    await user.click(guideButton);
+    expect(guidePicker).toHaveBeenCalledTimes(1);
+    expect(normalPicker).not.toHaveBeenCalled();
+    await user.click(normalButton);
+    expect(normalPicker).toHaveBeenCalledTimes(1);
+    expect(guidePicker).toHaveBeenCalledTimes(1);
   });
 });

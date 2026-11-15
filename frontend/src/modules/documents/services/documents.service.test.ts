@@ -34,6 +34,15 @@ const SAVED_CV = {
   isCurrent: true,
 };
 
+const CV_SECTIONS = {
+  includeContactInfo: true,
+  includeSummary: true,
+  includeWorkExperience: false,
+  includeEducation: true,
+  includeCertifications: false,
+  includeProjects: true,
+};
+
 function wrapResponse<T>(data: T) {
   return { data: { statusCode: 200, data, detail: "OK", ok: true } };
 }
@@ -98,7 +107,21 @@ describe("documentsService", () => {
     expect(url).toBe("/profile/me/cvs");
     expect(body).toBeInstanceOf(FormData);
     expect((body as FormData).get("file")).toBe(file);
-    expect(config).toEqual({ headers: AUTH_HEADERS });
+    expect(config).toEqual({ headers: AUTH_HEADERS, onUploadProgress: expect.any(Function) });
+  });
+
+  it("reports the upload progress as a percentage", async () => {
+    const onProgress = vi.fn();
+    vi.mocked(apiClient.post).mockImplementation((_url, _body, config) => {
+      config?.onUploadProgress?.({ loaded: 256, total: 1024, bytes: 256, lengthComputable: true });
+      config?.onUploadProgress?.({ loaded: 256, total: undefined, bytes: 0, lengthComputable: false });
+      return Promise.resolve(wrapResponse(CV_RESPONSE));
+    });
+
+    await documentsService.uploadCv(new File(["%PDF"], "resume.pdf", { type: "application/pdf" }), onProgress);
+
+    expect(onProgress).toHaveBeenCalledTimes(1);
+    expect(onProgress).toHaveBeenCalledWith(25);
   });
 
   it("returns null when the upload response has no cv", async () => {
@@ -120,6 +143,55 @@ describe("documentsService", () => {
     });
   });
 
+  it("requests the cv generated from the profile and extracts the filename from content-disposition", async () => {
+    const pdf = new Blob(["%PDF"], { type: "application/pdf" });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: pdf,
+      headers: { "content-disposition": 'attachment; filename="CV_Juan_Perez.pdf"' },
+    });
+
+    await expect(documentsService.generateCv(CV_SECTIONS)).resolves.toEqual({
+      file: pdf,
+      fileName: "CV_Juan_Perez.pdf",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/profile/cv/generate",
+      { sections: CV_SECTIONS },
+      {
+        headers: AUTH_HEADERS,
+        responseType: "blob",
+      },
+    );
+  });
+
+  it("falls back to CV.pdf when content-disposition header is absent", async () => {
+    const pdf = new Blob(["%PDF"], { type: "application/pdf" });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: pdf,
+      headers: {},
+    });
+
+    await expect(documentsService.generateCv(CV_SECTIONS)).resolves.toEqual({
+      file: pdf,
+      fileName: "CV.pdf",
+    });
+  });
+
+  it("counts the featured portfolio projects of the user", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(wrapResponse([{ id: "p-1" }, { id: "p-2" }]));
+
+    await expect(documentsService.getPortfolioProjectCount()).resolves.toBe(2);
+    expect(apiClient.get).toHaveBeenCalledWith("/profile/portfolio/projects", {
+      headers: AUTH_HEADERS,
+    });
+  });
+
+  it("counts zero portfolio projects when the response has no data", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(wrapResponse(null));
+
+    await expect(documentsService.getPortfolioProjectCount()).resolves.toBe(0);
+  });
+
   it("deletes the chosen cv by its id", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(wrapResponse(null));
 
@@ -136,5 +208,34 @@ describe("documentsService", () => {
     await expect(
       documentsService.uploadCv(new File(["x"], "photo.pdf", { type: "application/pdf" })),
     ).rejects.toBe(error);
+  });
+
+  it("requests the extraction of a cv and fills the missing data", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(
+      wrapResponse({
+        cvId: "cv-1",
+        contact: { email: "ana@mail.com", cityId: "city-lpz" },
+        presentation: "Desarrolladora web",
+        educations: null,
+        skills: [{ skillId: "skill-ts", name: "TypeScript" }],
+      }),
+    );
+
+    await expect(documentsService.extractCvData("cv-1")).resolves.toEqual({
+      cvId: "cv-1",
+      contact: { firstName: null, lastName: null, email: "ana@mail.com", phone: null, location: null, cityId: "city-lpz" },
+      presentation: { headline: null, aboutMe: "Desarrolladora web" },
+      educations: [],
+      workExperiences: [],
+      skills: [{ skillId: "skill-ts", name: "TypeScript" }],
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/profile/me/cvs/cv-1/extraction", {}, { headers: AUTH_HEADERS });
+  });
+
+  it("propagates the extraction error to the caller", async () => {
+    const error = { response: { status: 422, data: { code: "CV_UNREADABLE" } } };
+    vi.mocked(apiClient.post).mockRejectedValue(error);
+
+    await expect(documentsService.extractCvData("cv-1")).rejects.toBe(error);
   });
 });

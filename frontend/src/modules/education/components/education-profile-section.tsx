@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EducationDeleteDialog } from "./education-delete-dialog";
 import { EducationForm } from "./education-form";
 import { EducationListCard } from "./education-list-card";
-import { FeedbackMessage } from "@/modules/profile";
+import { FeedbackMessage, ProfileCompletenessProgress, useProfileCompletionRequest } from "@/modules/profile";
 import { RecordEditorDialog } from "@/shared/components/layout/record-editor-dialog";
 import { useDeleteEducation } from "../hooks/use-delete-education";
 import { useEducations } from "../hooks/use-educations";
@@ -65,6 +65,8 @@ export function EducationProfileSection() {
     setIsFormOpen(true);
   };
 
+  useProfileCompletionRequest('education', !isLoading && !error && !isBusy, handleCreate);
+
   const handleDelete = (education: EducationItem) => {
     if (isBusy) return;
     saveMutation.clearFeedback();
@@ -117,16 +119,19 @@ export function EducationProfileSection() {
           onClose={handleCancel}
         >
           {(requestClose) => (
-        <EducationForm
-          key={`${editingEducation?.id ?? "new"}-${formVersion}`}
-          initialValues={editingEducation ? toEducationFormValues(editingEducation) : undefined}
-          allowMissingEndDate={editingEducation?.endDate === null}
-          isPending={saveMutation.isSaving}
-          feedback={saveMutation.feedback}
-          onValuesChange={() => setHasChanges(true)}
-          onSubmit={handleSubmit}
-          onCancel={requestClose}
-        />
+            <>
+              <ProfileCompletenessProgress showChecklist={false} />
+              <EducationForm
+                key={`${editingEducation?.id ?? "new"}-${formVersion}`}
+                initialValues={editingEducation ? toEducationFormValues(editingEducation) : undefined}
+                allowMissingEndDate={editingEducation?.endDate === null}
+                isPending={saveMutation.isSaving}
+                feedback={saveMutation.feedback}
+                onValuesChange={() => setHasChanges(true)}
+                onSubmit={handleSubmit}
+                onCancel={requestClose}
+              />
+            </>
           )}
         </RecordEditorDialog>
       ) : null}

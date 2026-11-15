@@ -1,3 +1,6 @@
+import { DirectRegistrationController } from './controllers/direct-registration.controller.js';
+import { DirectRegistrationService } from './services/direct-registration.service.js';
+import { DirectRegistrationRepository } from './repositories/direct-registration.repository.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuditEventsModule } from '../audit-events/audit-events.module.js';
@@ -38,12 +41,15 @@ import { DocumentCorrectionService } from './services/document-correction.servic
     AuditEventsModule,
   ],
   controllers: [
+    DirectRegistrationController,
     AccessRequestAutomationController,
     AccessRequestsController,
     AccountActivationController,
     DocumentCorrectionController,
   ],
   providers: [
+    DirectRegistrationService,
+    DirectRegistrationRepository,
     AccessRequestsService,
     AccessRequestsRepository,
     AccountActivationService,

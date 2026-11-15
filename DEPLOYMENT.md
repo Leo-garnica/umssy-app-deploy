@@ -1,20 +1,18 @@
 # UMSSY en Vercel
 
-Esta rama incorpora la aplicación completa de `UMSSY/umssy-app` y los cambios del sprint 3 hasta `7f46cf2c6`, de `feature/grupo-2-profile-guide-animations`. Se conservan el arranque nativo de NestJS para Vercel, el build con OCR y la configuración de Prisma del deploy. El deploy usa su propio repositorio, URLs y base de datos. Los informes de QA en `docs/qa` y `UPSTREAM_INTEGRATION.md` corresponden a versiones anteriores.
+Esta rama incorpora la aplicación completa de `UMSSY/umssy-app` y los cambios del sprint 3 hasta `a1fc425a7`, de `epic/grupo-2-perfiles-y-NLP`. Se conservan el arranque nativo de NestJS para Vercel, el build con OCR y la configuración de Prisma del deploy. El deploy usa su propio repositorio, URLs y base de datos. Los informes de QA en `docs/qa` y `UPSTREAM_INTEGRATION.md` corresponden a versiones anteriores.
 
 ## Base de pruebas
 
-Crea una base PostgreSQL vacía para esta versión, con esquema `public` y permiso para instalar `btree_gist`. La base del deploy anterior tiene otro historial de migraciones, incluidas variantes de las migraciones de CV y NLP. Usa un proyecto Supabase separado si quieres conservar ese entorno y sus cuentas.
+La base Supabase de este deploy ya tiene las 50 migraciones y los catálogos actualizados. Conserva sus cuentas. Para una instalación nueva, configura las variables DB en backend/.env y ejecuta desde backend:
 
-Desde `backend`, configura un `.env` local a partir de `.env.example`, con los datos de la base nueva. En Supabase usa los datos de **Connect → Session pooler** (puerto 5432). Ejecuta:
-
-```powershell
+```cmd
 pnpm install --frozen-lockfile
 pnpm migrate:apply
 pnpm seed:production
 ```
 
-Para crear la primera cuenta administrativa, ejecuta `pnpm seed:admin --email TU_CORREO` y guarda la contraseña que imprime. La base nueva tiene sus propias cuentas y catálogos.
+Las actualizaciones se aplican con migrate deploy mediante el script migrate:apply. El build no aplica migraciones. No uses migrate reset en la base compartida.
 
 ## Proyectos en Vercel
 
@@ -95,3 +93,24 @@ Si tu base ya corresponde a la sincronización completa de develop `89d293cf`, c
 Migraciones añadidas: `20261106000000_add_radar_application_consents`, `20261110184209_create_user_social_accounts_and_portfolio_projects`, `20261112170000_align_recruiter_company`, `20261113154453_add_notifications` y `20261114013413_add_notification_fk_indexes`.
 
 Los informes históricos de `docs/qa` describen despliegues anteriores y no equivalen a una validación funcional de este sprint en la base remota. Tras publicar, comprobar login, bienvenida de titulado incompleto, guardado y reanudación del perfil, CV con texto y escaneado, conexión OAuth, notificaciones y sockets entre los dominios reales.
+
+## Sincronización de la épica y registro directo (15 de noviembre de 2026)
+
+Origen: epic/grupo-2-perfiles-y-NLP, commit a1fc425a712da954063f83a760a3066f0191ec75 (PR #2371). Esta actualización sincroniza 23 archivos del perfil, incluidas las correcciones de la guía y el selector del portafolio. No hay migraciones nuevas ni cambios de dependencias. Se conserva la configuración propia de Vercel, OCR, Prisma y hooks.
+
+Para este deploy privado de QA, configurar EN AMBOS proyectos de Vercel (backend y frontend):
+
+```dotenv
+UMSSY_DEPLOYMENT_ENV=qa
+ENABLE_DIRECT_REGISTRATION=true
+```
+
+Seleccionar los entornos utilizados, Production y/o Preview, y desplegar de nuevo ambos proyectos. Son variables del servidor; no requieren prefijo NEXT_PUBLIC_. El backend rechaza el registro directo salvo que ambas condiciones coincidan. Con el interruptor desactivado se muestra el flujo institucional anterior.
+
+En Solicitar acceso (/request-access), completar los campos personales habituales y contraseña/confirmación. Crear cuenta guarda una solicitud de prueba con código QA-..., estado approved, y una cuenta activa con rol titulado. La escritura anidada es atómica; el hash de la contraseña solo está en users. No crea OTP ni envía correo. El registro no genera educación, habilidades, CV ni progreso ficticio.
+
+Tras crearse la cuenta, pulsar Iniciar sesión e ingresar las credenciales elegidas. El destino es /dashboard: allí aparece la bienvenida de la guía para el nuevo usuario con perfil incompleto. No usar el registro de Supabase Auth para crear cuentas de esta aplicación. Un correo ya existente no se sobrescribe. Si falla, se conservan los campos para corregir y reintentar.
+
+Se retira del deploy la ruta pública temporal /profile-guide-preview y su prueba de página. La épica aún contiene esa ruta: antes del merge a develop, retirar también esos archivos en el repositorio principal mediante el PR del equipo.
+
+Para QA: la guía usa formularios superpuestos; guardar actualiza el porcentaje y habilita Siguiente, sin avanzar automáticamente. Inicio tiene Pendiente/Completada. Las pendientes conservan enlaces y su clic normal abre el modal si la guía está habilitada, con navegación al formulario como alternativa; las completadas son informativas. El listado dentro del modal sí distingue En proceso y permite elegir sección. Primer ingreso, paso y finalización de la guía están en IndexedDB por usuario/navegador; el contenido del perfil y el porcentaje real están en el backend. Estos son cambios de contrato respecto a los CA literales y requieren acuerdo de QA/PO, no una equivalencia aprobada de forma implícita.

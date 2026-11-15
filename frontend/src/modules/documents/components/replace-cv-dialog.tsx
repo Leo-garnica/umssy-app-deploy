@@ -9,13 +9,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { formatFileSize } from "@/modules/profile";
+import { Progress } from "@/components/ui/progress";
+import { formatFileSize, ProfileCompletenessProgress } from "@/modules/profile";
+import { CV_UPLOAD_PROGRESS } from "../constants/cv-upload.constants";
 import type { ReplaceCvDialogProps } from "../types/replace-cv-dialog-props.types";
 
 export function ReplaceCvDialog({
   file,
   currentFileName,
   isReplacing = false,
+  uploadProgress = CV_UPLOAD_PROGRESS.min,
   errorMessage = null,
   onConfirm,
   onCancel,
@@ -35,11 +38,18 @@ export function ReplaceCvDialog({
               : "El archivo seleccionado será tu CV vigente. Tu CV actual pasará al historial."}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <div className="mt-4"><ProfileCompletenessProgress showChecklist={false} /></div>
         {file ? (
           <p className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-surface-soft px-4 py-3 text-sm break-all text-ink">
             <FileText aria-hidden="true" className="size-5 shrink-0 text-ink-soft" />
             {file.name} · {formatFileSize(file.size)}
           </p>
+        ) : null}
+        {isReplacing ? (
+          <div aria-live="polite" className="mt-4 flex flex-col gap-2">
+            <Progress value={uploadProgress} aria-label="Progreso de la subida" />
+            <p className="text-xs text-text-secondary">{`Subiendo... ${uploadProgress}%`}</p>
+          </div>
         ) : null}
         {errorMessage ? (
           <p role="alert" className="mt-4 flex items-center gap-2 text-sm text-danger">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useProfileCompletionFocus } from "@/modules/profile";
 import { Label } from "@/components/ui/label";
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
@@ -33,6 +34,7 @@ export function WorkExperienceForm({
   initialDetectedSkills = [],
   isPending = false,
   feedback = null,
+  saveLabel = "Guardar experiencia",
   onSubmit,
   onCancel,
   onValuesChange,
@@ -49,6 +51,13 @@ export function WorkExperienceForm({
   const isEditing = Boolean(initialValues);
   const title = isEditing ? "Editar experiencia" : "Agregar experiencia";
   const today = getTodayIsoDate();
+  useProfileCompletionFocus('work-experience', {
+    'work-experience-companyName': values.companyName,
+    'work-experience-position': values.position,
+    'work-experience-startDate': values.startDate,
+    ...(!values.isCurrent ? { 'work-experience-endDate': values.endDate } : {}),
+    'work-experience-description': values.description,
+  }, !isPending);
 
   const handleValueChange = (name: keyof WorkExperienceFormValues, value: string) => {
     onValuesChange?.();
@@ -251,7 +260,7 @@ export function WorkExperienceForm({
             {isPending ? (
               <Loader2 aria-hidden="true" className="size-4 animate-spin" />
             ) : null}
-            {isPending ? "Guardando..." : "Guardar experiencia"}
+            {isPending ? "Guardando..." : saveLabel}
           </Button>
         </div>
       </form>
